@@ -27,8 +27,6 @@ export default async function handler(req: any, res: any) {
     }
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-      // NOTE: `pg` does not auto-serialize JS objects for jsonb columns —
-      // JSON.stringify explicitly, or the driver will send `[object Object]`.
       await query(
         `INSERT INTO site_content (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
          ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,

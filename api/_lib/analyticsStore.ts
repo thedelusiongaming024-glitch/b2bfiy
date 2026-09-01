@@ -14,8 +14,8 @@ export interface AnalyticsEvent {
 }
 
 export interface DayDataPoint {
-  date: string; // YYYY-MM-DD
-  label: string; // e.g. "Aug 1"
+  date: string;
+  label: string;
   pageViews: number;
   uniqueVisitors: number;
   leads: number;
@@ -32,19 +32,12 @@ export interface AnalyticsSummary {
   conversionRate: number;
   topPages: { path: string; views: number; percentage: number }[];
   deviceBreakdown: { device: string; count: number; percentage: number }[];
-  isDemoData: boolean; // true when Supabase isn't configured and we're showing seeded sample data
+  isDemoData: boolean;
 }
 
 const STORAGE_FILE = path.join(process.cwd(), ".analytics-cache.json");
 const TABLE = "analytics_events";
 
-// -----------------------------------------------------------------
-// In-memory / file fallback — used ONLY when Neon isn't configured.
-// This exists so `npm run dev` still shows something without a database,
-// but it does NOT persist across serverless invocations on Vercel. Set
-// DATABASE_URL as a server env var to get real, persistent analytics
-// (see api/db.ts).
-// -----------------------------------------------------------------
 let fallbackEvents: AnalyticsEvent[] = [];
 let fallbackInitialized = false;
 
@@ -118,7 +111,6 @@ function initFallbackStore() {
     console.warn("Analytics cache load error:", e);
   }
 
-  // Only seed obviously-fake demo data in the no-database fallback path.
   fallbackEvents = generateBaselineHistory();
   saveFallbackStore();
 }
@@ -130,14 +122,9 @@ function saveFallbackStore() {
     }
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(fallbackEvents, null, 2), "utf-8");
   } catch (e) {
-    // Local filesystem may be read-only (e.g. serverless) — safe to ignore,
-    // the in-memory copy still works for the lifetime of this process.
+    // In serverless / read-only filesystem, safe to ignore
   }
 }
-
-// -----------------------------------------------------------------
-// Public API
-// -----------------------------------------------------------------
 
 export async function recordAnalyticsEvent(
   event: Omit<AnalyticsEvent, "id" | "timestamp"> & { timestamp?: number }
@@ -175,7 +162,6 @@ export async function recordAnalyticsEvent(
     return newEvent;
   }
 
-  // No database configured — fall back to the in-process store.
   initFallbackStore();
   fallbackEvents.push(newEvent);
   saveFallbackStore();
@@ -330,13 +316,9 @@ export async function get30DayAnalytics(): Promise<AnalyticsSummary> {
       params: row.params ?? undefined,
     }));
 
-    // Real data, even if the answer is "zero events so far" — never seed
-    // fake numbers once a real database is connected.
     return computeSummary(events, false);
   }
 
-  // No database configured: show clearly-labeled demo data so the
-  // dashboard isn't empty during local development.
   initFallbackStore();
   return computeSummary(fallbackEvents, true);
 }

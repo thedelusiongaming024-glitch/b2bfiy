@@ -1,7 +1,3 @@
-// Replaces Supabase Auth. Admin identity is a row in the `admin_users` table
-// (email + bcrypt password hash), and a signed-in session is an HttpOnly JWT
-// cookie — there is no third-party auth provider anymore.
-
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { query, hasDatabaseUrl } from "./db";
@@ -30,9 +26,6 @@ export function verifySessionToken(token: string): AdminSessionPayload | null {
   }
 }
 
-// Works for both Express (with cookie-parser) and Vercel Node functions
-// (which parse `req.cookies` automatically), and falls back to manually
-// parsing the raw Cookie header if neither populated it.
 export function getSessionFromRequest(req: any): AdminSessionPayload | null {
   let token: string | undefined = req.cookies?.[SESSION_COOKIE_NAME];
 
@@ -62,10 +55,6 @@ export function clearSessionCookie(res: any) {
   res.setHeader("Set-Cookie", `${SESSION_COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
 }
 
-// On first-ever login attempt, if admin_users is empty, bootstrap one
-// account from ADMIN_EMAIL + ADMIN_PASSWORD server env vars. Once you've
-// signed in successfully you can remove ADMIN_PASSWORD from your env vars
-// if you'd like — the hashed copy is what's checked from then on.
 async function bootstrapAdminIfEmpty(): Promise<void> {
   if (!hasDatabaseUrl()) return;
   try {

@@ -1,8 +1,3 @@
-// Shared logic for the three "list" tables that all share the same
-// (id TEXT PRIMARY KEY, data JSONB) shape: portfolios, packages, media_items.
-// GET is public; PUT replaces the whole list (upsert + delete-missing) and
-// requires an admin session, mirroring the old Supabase RLS behavior.
-
 import { query, withTransaction, hasDatabaseUrl } from "./db";
 import { getSessionFromRequest } from "./adminAuth";
 

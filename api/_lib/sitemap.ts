@@ -1,6 +1,12 @@
 import { Request, Response } from "express";
-import { initialPortfolios } from "../../src/data/initialData";
 import { query, hasDatabaseUrl } from "./db";
+
+const DEFAULT_PORTFOLIO_SLUGS = [
+  { slug: "sample-ecommerce-storefront", title: "Sample Project: E-Commerce Storefront", projectDate: "2026-04-12", featured: true },
+  { slug: "sample-brand-identity", title: "Sample Project: Brand Visual Identity", projectDate: "2026-05-18", featured: true },
+  { slug: "sample-social-video-reels", title: "Sample Project: Social Video Reels", projectDate: "2026-06-05", featured: true },
+  { slug: "sample-corporate-documentary", title: "Sample Project: Corporate Documentary", projectDate: "2026-07-02", featured: true },
+];
 
 function escapeXml(unsafe: string): string {
   if (!unsafe) return "";
@@ -39,8 +45,7 @@ export async function generateSitemapXml(hostUrl: string): Promise<string> {
     { path: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-01-01" },
   ];
 
-  // 2. Fetch portfolios (from initial data + Neon if available)
-  let allPortfolios = [...initialPortfolios];
+  let allPortfolios: any[] = [...DEFAULT_PORTFOLIO_SLUGS];
 
   if (hasDatabaseUrl()) {
     try {
@@ -49,7 +54,6 @@ export async function generateSitemapXml(hostUrl: string): Promise<string> {
         .map((row) => ({ ...row.data, id: row.id }))
         .filter((p: any) => p.published !== false);
 
-      // Combine unique by slug
       const slugMap = new Map();
       [...allPortfolios, ...dbItems].forEach((p: any) => {
         if (p.slug && p.published !== false) {
@@ -58,17 +62,15 @@ export async function generateSitemapXml(hostUrl: string): Promise<string> {
       });
       allPortfolios = Array.from(slugMap.values());
     } catch (e) {
-      console.warn("Could not fetch portfolios from Neon for sitemap:", e);
+      console.warn("Could not fetch portfolios from DB for sitemap:", e);
     }
   }
 
-  // 3. Build XML
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 `;
 
-  // Append static pages
   for (const page of staticPages) {
     xml += `  <url>
     <loc>${escapeXml(`${normalizedBaseUrl}${page.path}`)}</loc>
@@ -79,7 +81,6 @@ export async function generateSitemapXml(hostUrl: string): Promise<string> {
 `;
   }
 
-  // Append portfolio projects
   for (const project of allPortfolios) {
     if (project.published === false) continue;
     const projectUrl = `${normalizedBaseUrl}/portfolio/${project.slug || project.id}`;

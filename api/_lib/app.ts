@@ -1,23 +1,22 @@
 import express from "express";
 import cookieParser from "cookie-parser";
-import trackHandler from "./api/track";
-import sitemapHandler from "./api/sitemap";
-import healthHandler from "./api/health";
-import contentHandler from "./api/content";
-import portfoliosHandler from "./api/portfolios";
-import packagesHandler from "./api/packages";
-import mediaHandler from "./api/media";
-import leadsHandler from "./api/leads";
-import adminLoginHandler from "./api/admin/login";
-import adminLogoutHandler from "./api/admin/logout";
-import adminSessionHandler from "./api/admin/session";
-import adminPasswordHandler from "./api/admin/password";
-import { get30DayAnalytics } from "./api/analyticsStore";
+import trackHandler from "./track";
+import sitemapHandler from "./sitemap";
+import healthHandler from "./health";
+import contentHandler from "./content";
+import portfoliosHandler from "./portfolios";
+import packagesHandler from "./packages";
+import mediaHandler from "./media";
+import leadsHandler from "./leads";
+import adminLoginHandler from "./admin/login";
+import adminLogoutHandler from "./admin/logout";
+import adminSessionHandler from "./admin/session";
+import adminPasswordHandler from "./admin/password";
+import { get30DayAnalytics } from "./analyticsStore";
 
 export function createApiApp() {
   const app = express();
 
-  // Enable JSON, text/raw, and cookie parsers
   app.use(express.json());
   app.use(express.text({ type: ["text/*", "application/json"] }));
   app.use(express.urlencoded({ extended: true }));
@@ -54,7 +53,7 @@ Sitemap: ${sitemapUrl}
     await healthHandler(req, res);
   });
 
-  // Neon-backed data routes (each handler internally branches on req.method)
+  // Neon-backed data routes
   app.all("/api/content", async (req, res) => {
     await contentHandler(req, res);
   });

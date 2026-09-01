@@ -1,22 +1,3 @@
-// Server-side event tracking endpoint (Vercel serverless function).
-//
-// This runs on the server, never in the browser, so the secrets below are
-// safe: they are read from Vercel Environment Variables and are never sent
-// to the client.
-//
-// Required env vars (set in Vercel Project Settings -> Environment Variables):
-//   META_CAPI_ACCESS_TOKEN   - Meta Events Manager -> Conversions API token
-//   GA4_MEASUREMENT_ID       - e.g. "G-XXXXXXXXXX"
-//   GA4_API_SECRET           - GA4 Admin -> Data Streams -> Measurement Protocol API secrets
-//
-// The client (see src/lib/serverTracking.ts) POSTs a small event payload
-// here. This function fans the event out to Meta and GA4 server-to-server.
-// Google Ads is intentionally NOT called directly: link your Google Ads
-// account to this GA4 property (Google Ads -> Linked accounts -> Google
-// Analytics) and enable "Import conversions" from GA4 events/conversions.
-// Once linked, every event this endpoint sends to GA4 is available to
-// import as a Google Ads conversion with no extra credentials or code.
-
 import { recordAnalyticsEvent } from "./analyticsStore";
 
 export const config = {
@@ -24,18 +5,18 @@ export const config = {
 };
 
 interface TrackRequestBody {
-  eventName: string; // e.g. "PageView", "Lead", "Contact"
-  eventId: string; // shared id used for Meta Pixel <-> CAPI dedup
+  eventName: string;
+  eventId: string;
   eventSourceUrl?: string;
-  pixelId?: string; // Meta Pixel ID (public, comes from site content)
-  clientId?: string; // GA4 client_id (random id persisted in localStorage)
+  pixelId?: string;
+  clientId?: string;
   userAgent?: string;
   clientIp?: string;
   userData?: {
     email?: string;
     phone?: string;
   };
-  params?: Record<string, unknown>; // extra GA4 event params
+  params?: Record<string, unknown>;
 }
 
 function hashSha256(value: string): Promise<string> {
