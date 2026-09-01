@@ -1,4 +1,4 @@
-import { hasDatabaseUrl, isDbReachable } from "./db.ts";
+import { hasDatabaseUrl, isDbReachable } from "./db";
 
 export default async function handler(_req: any, res: any) {
   if (!hasDatabaseUrl()) {
