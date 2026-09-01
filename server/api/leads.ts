@@ -40,9 +40,6 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method === "POST") {
-    // Signed-in admins can upsert (used to edit status/notes on an existing
-    // lead). Anonymous visitors can only insert a brand-new lead — this
-    // mirrors the old "public insert, admin-only update" Supabase RLS split.
     const session = getSessionFromRequest(req);
 
     if (!hasDatabaseUrl()) {

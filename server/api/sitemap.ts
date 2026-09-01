@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { initialPortfolios } from "../src/data/initialData";
+import { initialPortfolios } from "../../src/data/initialData";
 import { query, hasDatabaseUrl } from "./db";
 
 function escapeXml(unsafe: string): string {

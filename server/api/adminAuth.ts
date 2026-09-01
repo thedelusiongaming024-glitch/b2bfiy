@@ -136,8 +136,3 @@ export async function updatePasswordForUser(userId: string, newPassword: string)
   const hash = await bcrypt.hash(newPassword, 10);
   await query("UPDATE admin_users SET password_hash = $1 WHERE id = $2", [hash, userId]);
 }
-
-export default async function handler(req: any, res: any) {
-  res.status(404).json({ error: "Not an API endpoint" });
-}
-

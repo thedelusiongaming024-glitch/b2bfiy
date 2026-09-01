@@ -41,7 +41,6 @@ interface TrackRequestBody {
 function hashSha256(value: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(value.trim().toLowerCase());
-  // Node 18+ / Vercel's nodejs runtime exposes the Web Crypto API globally.
   return crypto.subtle.digest("SHA-256", data).then((buf) =>
     Array.from(new Uint8Array(buf))
       .map((b) => b.toString(16).padStart(2, "0"))
@@ -112,7 +111,6 @@ async function sendToGa4(body: TrackRequestBody) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  // GA4's Measurement Protocol returns 204 with no body on success.
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     console.error("GA4 Measurement Protocol error:", res.status, text);
@@ -121,7 +119,6 @@ async function sendToGa4(body: TrackRequestBody) {
   return { ok: true };
 }
 
-// GA4 event names may only contain letters, numbers, and underscores.
 function normalizeGa4EventName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 40);
 }
@@ -151,7 +148,6 @@ export default async function handler(req: any, res: any) {
 
   const enriched: TrackRequestBody = { ...body, clientIp, userAgent };
 
-  // Record into local analytics store for real-time reporting & charts
   try {
     await recordAnalyticsEvent({
       eventName: enriched.eventName,

@@ -340,8 +340,3 @@ export async function get30DayAnalytics(): Promise<AnalyticsSummary> {
   initFallbackStore();
   return computeSummary(fallbackEvents, true);
 }
-
-export default async function handler(req: any, res: any) {
-  res.status(404).json({ error: "Not an API endpoint" });
-}
-

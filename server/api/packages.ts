@@ -1,4 +1,3 @@
 import { createListTableHandler } from "./listTable";
 
-export default createListTableHandler("portfolios");
-
+export default createListTableHandler("packages");
