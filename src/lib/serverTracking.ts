@@ -56,6 +56,30 @@ export function trackEvent(eventName: string, options: TrackEventOptions = {}): 
     }
   }
 
+  // 1b. Client-side Google Tag (gtag.js) if loaded
+  const gtag = (window as any).gtag;
+  if (typeof gtag === "function") {
+    try {
+      if (eventName === "PageView") {
+        gtag("event", "page_view", {
+          page_location: window.location.href,
+          page_title: document.title,
+        });
+      } else if (eventName === "Lead") {
+        gtag("event", "generate_lead", {
+          event_category: "engagement",
+          value: 1,
+          currency: "BDT",
+          ...(options.params || {}),
+        });
+      } else {
+        gtag("event", eventName.toLowerCase(), options.params || {});
+      }
+    } catch (e) {
+      console.warn("Google Tag client-side track failed:", e);
+    }
+  }
+
   // 2. Server-side forward (Meta CAPI + GA4 Measurement Protocol).
   try {
     const payload = {

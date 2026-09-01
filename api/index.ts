@@ -750,7 +750,8 @@ function normalizeGa4EventName(name: string): string {
 
 async function sendToMetaCapi(body: any) {
   const accessToken = process.env.META_CAPI_ACCESS_TOKEN;
-  if (!accessToken || !body.pixelId) return { skipped: "meta_capi_not_configured" };
+  const pixelId = (body.pixelId || process.env.META_PIXEL_ID || "1061066570060359").toString().trim();
+  if (!accessToken || !pixelId) return { skipped: "meta_capi_not_configured" };
 
   const userData: Record<string, unknown> = {
     client_ip_address: body.clientIp,
@@ -772,7 +773,7 @@ async function sendToMetaCapi(body: any) {
     ],
   };
 
-  const url = `https://graph.facebook.com/v20.0/${body.pixelId}/events?access_token=${accessToken}`;
+  const url = `https://graph.facebook.com/v20.0/${pixelId}/events?access_token=${accessToken}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -782,7 +783,7 @@ async function sendToMetaCapi(body: any) {
 }
 
 async function sendToGa4(body: any) {
-  const measurementId = process.env.GA4_MEASUREMENT_ID;
+  const measurementId = process.env.GA4_MEASUREMENT_ID || "G-1HYPSQV3PM";
   const apiSecret = process.env.GA4_API_SECRET;
   if (!measurementId || !apiSecret) return { skipped: "ga4_not_configured" };
 

@@ -415,6 +415,34 @@ export default function App() {
         }
       }
     }
+
+    // 7. Dynamic Google Analytics 4 (gtag.js) Setup
+    if (siteContent.ga4MeasurementId) {
+      const ga4Id = siteContent.ga4MeasurementId.trim();
+      if (ga4Id && typeof window !== "undefined") {
+        const scriptId = "google-tag-script";
+        let existingScript = document.getElementById(scriptId);
+
+        if (!existingScript) {
+          // Initialize dataLayer and gtag function
+          (window as any).dataLayer = (window as any).dataLayer || [];
+          function gtag(...args: any[]) {
+            (window as any).dataLayer.push(args);
+          }
+          (window as any).gtag = (window as any).gtag || gtag;
+          (window as any).gtag('js', new Date());
+          (window as any).gtag('config', ga4Id);
+
+          const script = document.createElement("script");
+          script.id = scriptId;
+          script.async = true;
+          script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id}`;
+          document.head.appendChild(script);
+
+          console.log(`[SEO & Analytics] Google Tag ${ga4Id} successfully initialized.`);
+        }
+      }
+    }
   }, [
     siteContent.brandName,
     siteContent.metaTitle,
@@ -422,7 +450,8 @@ export default function App() {
     siteContent.metaDescription,
     siteContent.seoKeywords,
     siteContent.googleSiteVerification,
-    siteContent.metaPixelId
+    siteContent.metaPixelId,
+    siteContent.ga4MeasurementId
   ]);
 
   // 6b. Server-side PageView tracking (Meta CAPI + GA4), fired on every route
