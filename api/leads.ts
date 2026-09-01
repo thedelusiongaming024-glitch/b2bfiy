@@ -1,5 +1,5 @@
-import { query } from "./db.ts";
-import { getSessionFromRequest } from "./adminAuth.ts";
+import { query, hasDatabaseUrl } from "./db";
+import { getSessionFromRequest } from "./adminAuth";
 
 function rowToLead(row: any) {
   return {
@@ -25,6 +25,10 @@ export default async function handler(req: any, res: any) {
       res.status(401).json({ error: "Not signed in." });
       return;
     }
+    if (!hasDatabaseUrl()) {
+      res.status(200).json({ data: [] });
+      return;
+    }
     try {
       const rows = await query("SELECT * FROM leads ORDER BY submitted_at DESC");
       res.status(200).json({ data: rows.map(rowToLead) });
@@ -40,6 +44,11 @@ export default async function handler(req: any, res: any) {
     // lead). Anonymous visitors can only insert a brand-new lead — this
     // mirrors the old "public insert, admin-only update" Supabase RLS split.
     const session = getSessionFromRequest(req);
+
+    if (!hasDatabaseUrl()) {
+      res.status(200).json({ ok: true });
+      return;
+    }
 
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { initialPortfolios } from "../src/data/initialData.ts";
-import { query, hasDatabaseUrl } from "./db.ts";
+import { initialPortfolios } from "../src/data/initialData";
+import { query, hasDatabaseUrl } from "./db";
 
 function escapeXml(unsafe: string): string {
   if (!unsafe) return "";

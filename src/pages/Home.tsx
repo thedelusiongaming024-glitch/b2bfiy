@@ -308,56 +308,64 @@ export default function Home({
               { 
                 title: t("Website Development", "ওয়েবসাইট ডেভেলপমেন্ট"), 
                 icon: <Monitor className="w-5 h-5" />, 
-                categoryKey: "website",
+                categoryKey: "website" as const,
                 desc: t("We build modern, fast, mobile friendly websites designed to turn visitors into potential customers.", "আমরা তৈরি করি আধুনিক, দ্রুত ও মোবাইল-বান্ধব ওয়েবসাইট যা আপনার ভিজিটরদের কাস্টমারে রূপান্তর করবে।") 
               },
               { 
                 title: t("Graphic Design", "গ্রাফিক্স ডিজাইন"), 
                 icon: <PenTool className="w-5 h-5" />, 
-                categoryKey: "graphic",
+                categoryKey: "graphic" as const,
                 desc: t("Professional visual content that makes your brand look consistent, trustworthy, and memorable.", "পেশাদার ভিজ্যুয়াল কনটেন্ট যা আপনার ব্র্যান্ডকে সবার কাছে বিশ্বস্ত, সামঞ্জস্যপূর্ণ এবং স্মরণীয় করে তোলে।") 
               },
               { 
                 title: t("Video Editing", "ভিডিও এডিটিং"), 
                 icon: <PlayCircle className="w-5 h-5" />, 
-                categoryKey: "video",
+                categoryKey: "video" as const,
                 desc: t("Engaging video content designed to capture attention and communicate your message effectively.", "আকর্ষণীয় ভিডিও কনটেন্ট যা সবার মনোযোগ কেড়ে নেবে এবং আপনার বার্তা সঠিকভাবে পৌঁছে দেবে।") 
               },
               { 
                 title: t("Social Media Management", "সোশ্যাল মিডিয়া ম্যানেজমেন্ট"), 
                 icon: <Share2 className="w-5 h-5" />, 
-                categoryKey: "monthly",
+                categoryKey: "monthly" as const,
                 desc: t("We manage your social media presence so you can focus on running your business.", "আমরা আপনার সোশ্যাল মিডিয়া পেজগুলো পরিচালনা করি যাতে আপনি আপনার ব্যবসায়ে মনোনিবেশ করতে পারেন।") 
               }
-            ].map((serv, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                whileHover={{ y: -6, scale: 1.01 }}
-                onClick={() => handleRouteClick("packages", serv.categoryKey)}
-                className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border border-[#F2E4E2] dark:border-gray-700/80 p-6 rounded-2xl shadow-[0_4px_20px_rgba(255,45,45,0.02)] hover:shadow-xl hover:shadow-[#FF2D2D]/10 hover:border-[#FF2D2D]/30 transition-all cursor-pointer text-left flex flex-col justify-between h-full group"
-              >
-                <div className="space-y-4">
-                  <div className="w-10 h-10 rounded-xl bg-[#FFE8E5] dark:bg-red-950/40 text-[#FF2D2D] flex items-center justify-center transition-colors group-hover:bg-[#FF2D2D] group-hover:text-white">
-                    {serv.icon}
+            ].map((serv, idx) => {
+              const categoryPackages = packages.filter(p => p.type === serv.categoryKey && p.published);
+              const starterPlan = categoryPackages.find(p => p.title.toLowerCase().includes("starter")) || categoryPackages[0];
+              const starterLabel = starterPlan 
+                ? `${t("Starter Plan", "স্টার্টার প্ল্যান")} • ${starterPlan.price}${starterPlan.period === "Month" ? "/mo" : ""}`
+                : t("Explore Starter Plan", "স্টার্টার প্ল্যান দেখুন");
+
+              return (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: idx * 0.1 }}
+                  whileHover={{ y: -6, scale: 1.01 }}
+                  onClick={() => handleRouteClick("packages", serv.categoryKey)}
+                  className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border border-[#F2E4E2] dark:border-gray-700/80 p-6 rounded-2xl shadow-[0_4px_20px_rgba(255,45,45,0.02)] hover:shadow-xl hover:shadow-[#FF2D2D]/10 hover:border-[#FF2D2D]/30 transition-all cursor-pointer text-left flex flex-col justify-between h-full group"
+                >
+                  <div className="space-y-4">
+                    <div className="w-10 h-10 rounded-xl bg-[#FFE8E5] dark:bg-red-950/40 text-[#FF2D2D] flex items-center justify-center transition-colors group-hover:bg-[#FF2D2D] group-hover:text-white">
+                      {serv.icon}
+                    </div>
+                    <h3 className="text-base font-extrabold text-[#101828] dark:text-white group-hover:text-[#FF2D2D] transition-colors">
+                      {serv.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[#475467] dark:text-gray-300 leading-relaxed">
+                      {serv.desc}
+                    </p>
                   </div>
-                  <h3 className="text-base font-extrabold text-[#101828] dark:text-white group-hover:text-[#FF2D2D] transition-colors">
-                    {serv.title}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-[#475467] dark:text-gray-300 leading-relaxed">
-                    {serv.desc}
-                  </p>
-                </div>
-                
-                <div className="mt-5 pt-4 border-t border-[#FFF1EF] dark:border-gray-700/50 flex items-center gap-1 text-xs font-bold text-[#FF2D2D]">
-                  <span>{t("Explore plans", "প্ল্যানসমূহ দেখুন")}</span>
-                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </motion.div>
-            ))}
+                  
+                  <div className="mt-5 pt-4 border-t border-[#FFF1EF] dark:border-gray-700/50 flex items-center justify-between gap-1 text-xs font-bold text-[#FF2D2D]">
+                    <span>{starterLabel}</span>
+                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform shrink-0" />
+                  </div>
+                </motion.div>
+              );
+            })}
 
           </div>
         </div>
@@ -880,7 +888,7 @@ export default function Home({
                 <motion.div
                   key={work.id}
                   whileHover={{ y: -6 }}
-                  onClick={() => handleProjectClick(work.slug)}
+                  onClick={() => handleProjectClick(work.slug || work.id)}
                   className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-[#F2E4E2] dark:border-gray-700 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl hover:border-[#FF2D2D]/30 transition-all cursor-pointer flex flex-col h-full group"
                 >
                   <div className={`relative bg-[#FFF7F5] dark:bg-neutral-900/40 overflow-hidden flex items-center justify-center ${
@@ -1468,7 +1476,7 @@ export default function Home({
           clientName={activeVideoProject.clientName}
           category={activeVideoProject.category}
           subCategory={activeVideoProject.subCategory}
-          onViewDetails={() => handleProjectClick(activeVideoProject.slug)}
+          onViewDetails={() => handleProjectClick(activeVideoProject.slug || activeVideoProject.id)}
         />
       )}
 

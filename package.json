@@ -16,7 +16,6 @@
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "bcryptjs": "^2.4.3",
-    "build": "^0.1.4",
     "cookie-parser": "^1.4.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",

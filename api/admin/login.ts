@@ -1,4 +1,4 @@
-import { verifyAdminCredentials, signSessionToken, setSessionCookie } from "../adminAuth.ts";
+import { verifyAdminCredentials, signSessionToken, setSessionCookie } from "../adminAuth";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {

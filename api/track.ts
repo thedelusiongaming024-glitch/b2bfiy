@@ -17,7 +17,7 @@
 // Once linked, every event this endpoint sends to GA4 is available to
 // import as a Google Ads conversion with no extra credentials or code.
 
-import { recordAnalyticsEvent } from "./analyticsStore.ts";
+import { recordAnalyticsEvent } from "./analyticsStore";
 
 export const config = {
   runtime: "nodejs",

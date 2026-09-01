@@ -1,4 +1,4 @@
-import { getSessionFromRequest } from "../adminAuth.ts";
+import { getSessionFromRequest } from "../adminAuth";
 
 export default async function handler(req: any, res: any) {
   const session = getSessionFromRequest(req);

@@ -1,3 +1,4 @@
-import { createListTableHandler } from "./listTable.ts";
+import { createListTableHandler } from "./listTable";
 
 export default createListTableHandler("packages");
+

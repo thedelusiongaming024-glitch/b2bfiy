@@ -24,7 +24,7 @@ const CATEGORY_TO_PACKAGE_TYPE: Record<PortfolioProject["category"], "website" |
 export default function ProjectDetail({ setRoute, slug, portfolios }: ProjectDetailProps) {
   const { t } = useLanguage();
   const [isPlaying, setIsPlaying] = useState(false);
-  const project = portfolios.find((p) => p.slug === slug);
+  const project = portfolios.find((p) => p.slug === slug || p.id === slug);
   const parsedVideo = project ? parseVideoUrl(project.videoUrl, project.videoEmbed) : null;
   const packageCategoryKey = project ? CATEGORY_TO_PACKAGE_TYPE[project.category] : undefined;
 

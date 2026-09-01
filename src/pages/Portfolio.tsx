@@ -171,7 +171,7 @@ export default function Portfolio({ setRoute, setSelectedProjectSlug, portfolios
               return (
                 <div
                   key={project.id}
-                  onClick={() => handleProjectClick(project.slug)}
+                  onClick={() => handleProjectClick(project.slug || project.id)}
                   className="bg-white dark:bg-gray-800 border border-[#F2E4E2] dark:border-gray-700 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer text-left flex flex-col h-full group"
                 >
                   
@@ -334,7 +334,7 @@ export default function Portfolio({ setRoute, setSelectedProjectSlug, portfolios
             clientName={activeVideoProject.clientName}
             category={activeVideoProject.category}
             subCategory={activeVideoProject.subCategory}
-            onViewDetails={() => handleProjectClick(activeVideoProject.slug)}
+            onViewDetails={() => handleProjectClick(activeVideoProject.slug || activeVideoProject.id)}
           />
         )}
 

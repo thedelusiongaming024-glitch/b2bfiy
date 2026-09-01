@@ -3,12 +3,16 @@
 // GET is public; PUT replaces the whole list (upsert + delete-missing) and
 // requires an admin session, mirroring the old Supabase RLS behavior.
 
-import { query, withTransaction } from "./db.ts";
-import { getSessionFromRequest } from "./adminAuth.ts";
+import { query, withTransaction, hasDatabaseUrl } from "./db";
+import { getSessionFromRequest } from "./adminAuth";
 
 export function createListTableHandler(tableName: string) {
   return async function handler(req: any, res: any) {
     if (req.method === "GET") {
+      if (!hasDatabaseUrl()) {
+        res.status(200).json({ data: [] });
+        return;
+      }
       try {
         const rows = await query<{ id: string; data: any }>(`SELECT id, data FROM ${tableName}`);
         res.status(200).json({ data: rows.map((r) => ({ ...r.data, id: r.id })) });
@@ -58,3 +62,8 @@ export function createListTableHandler(tableName: string) {
     res.status(405).json({ error: "Method not allowed" });
   };
 }
+
+export default async function handler(req: any, res: any) {
+  res.status(404).json({ error: "Not an API endpoint" });
+}
+

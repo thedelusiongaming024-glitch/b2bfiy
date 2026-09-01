@@ -1,4 +1,4 @@
-import { getSessionFromRequest, updatePasswordForUser } from "../adminAuth.ts";
+import { getSessionFromRequest, updatePasswordForUser } from "../adminAuth";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {

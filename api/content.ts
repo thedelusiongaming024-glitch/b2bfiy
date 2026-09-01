@@ -1,10 +1,14 @@
-import { query } from "./db.ts";
-import { getSessionFromRequest } from "./adminAuth.ts";
+import { query, hasDatabaseUrl } from "./db";
+import { getSessionFromRequest } from "./adminAuth";
 
 const ROW_ID = "default_site_content";
 
 export default async function handler(req: any, res: any) {
   if (req.method === "GET") {
+    if (!hasDatabaseUrl()) {
+      res.status(200).json({ data: null });
+      return;
+    }
     try {
       const rows = await query<{ data: any }>("SELECT data FROM site_content WHERE id = $1", [ROW_ID]);
       res.status(200).json({ data: rows[0]?.data ?? null });
