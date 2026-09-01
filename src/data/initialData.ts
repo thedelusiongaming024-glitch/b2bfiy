@@ -109,7 +109,7 @@ export const initialSiteContent: SiteContent = {
   metaTitle: "B2bfiy - Digital Agency & Creative Solutions",
   seoKeywords: "digital presence, creative agency Dhaka, website development Bangladesh, video editing service, premium graphic design, social media management, SEO optimization",
   metaDescription: "B2bfiy is a complete digital presence agency helping businesses grow through high-converting websites, premium graphics, engaging reels, and result-oriented social media campaigns.",
-  googleSiteVerification: "",
+  googleSiteVerification: "google553b301bea0c3634",
   metaPixelId: "1061066570060359",
   ga4MeasurementId: "G-1HYPSQV3PM",
   floatingWhatsApp: "+8801712345678",

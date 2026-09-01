@@ -921,6 +921,11 @@ export function createApiApp() {
     res.status(200).send(robotsTxt);
   });
 
+  app.get("/google553b301bea0c3634.html", (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(200).send("google-site-verification: google553b301bea0c3634.html");
+  });
+
   // Site Content
   app.all("/api/content", async (req: Request, res: Response) => {
     const ROW_ID = "default_site_content";
