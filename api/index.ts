@@ -1149,6 +1149,18 @@ export function createApiApp() {
   });
 
   // Tracking API
+  app.get("/api/track", (_req: Request, res: Response) => {
+    res.json({
+      status: "ok",
+      endpoint: "/api/track",
+      description: "Server-side tracking gateway for Meta CAPI and Google Analytics 4.",
+      allowedMethods: ["POST", "GET"],
+      metaCapiConfigured: Boolean(process.env.META_CAPI_ACCESS_TOKEN),
+      ga4Configured: Boolean(process.env.GA4_MEASUREMENT_ID && process.env.GA4_API_SECRET),
+      instructions: "Send a POST request with { eventName, eventId, eventSourceUrl, ... } to record an analytics event."
+    });
+  });
+
   app.post("/api/track", async (req: Request, res: Response) => {
     try {
       let body: any;
