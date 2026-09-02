@@ -2194,8 +2194,8 @@ export default function Admin({
                           setEditedContent({
                             ...editedContent,
                             metaTitle: `${brand} | Premier Digital Agency in Dhaka - Web Design, Branding & Video`,
-                            metaDescription: `Scale your business with ${brand}. Dhaka's top creative agency specializing in high-converting web design, premium branding, viral video editing, and marketing.`,
-                            seoKeywords: "digital marketing agency Dhaka, web design Bangladesh, professional video editing Dhaka, creative agency Bangladesh, corporate branding, social media marketing Dhaka, UI UX design, B2B growth retainers, website development Bangladesh"
+                            metaDescription: `Scale your business with ${brand}. Dhaka's top creative agency specializing in high-converting web design, corporate branding, viral video editing, and social media retainers.`,
+                            seoKeywords: "digital marketing agency Dhaka, best web design company in Bangladesh, professional video editing Dhaka, creative agency Bangladesh, corporate branding and logo design Dhaka, social media marketing agency Dhaka, UI UX design Bangladesh, short-form video editing Reels TikTok, high converting landing page development, B2B growth retainers Bangladesh"
                           });
                           triggerSuccess("🏆 Applied Top-10 Ranking Master Formula!");
                         }}
@@ -2417,13 +2417,17 @@ export default function Admin({
                       <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
                         <span className="text-[9px] font-bold text-gray-400 uppercase">Add Keyword:</span>
                         {[
-                          "Web Development",
-                          "Graphic Design",
-                          "Video Editing",
-                          "Social Media Management",
-                          "Creative Agency Dhaka",
-                          "Digital Growth Retainers",
-                          "Brand Identity"
+                          "digital marketing agency Dhaka",
+                          "best web design company in Bangladesh",
+                          "professional video editing Dhaka",
+                          "creative agency Bangladesh",
+                          "corporate branding and logo design Dhaka",
+                          "social media marketing agency Dhaka",
+                          "UI UX design Bangladesh",
+                          "short-form video editing Reels TikTok",
+                          "high converting landing page development",
+                          "B2B growth retainers Bangladesh",
+                          "e-commerce web development Dhaka"
                         ].map((sugg) => {
                           const currentArr = (editedContent.seoKeywords || "")
                             .split(",")

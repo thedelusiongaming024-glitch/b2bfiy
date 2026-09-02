@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowLeft, ExternalLink, Calendar, User, Tag, ShieldCheck, Trophy, Sparkles, Youtube, Film, Play, DollarSign } from "lucide-react";
 import { PortfolioProject } from "../types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -27,6 +27,67 @@ export default function ProjectDetail({ setRoute, slug, portfolios }: ProjectDet
   const project = portfolios.find((p) => p.slug === slug || p.id === slug);
   const parsedVideo = project ? parseVideoUrl(project.videoUrl, project.videoEmbed) : null;
   const packageCategoryKey = project ? CATEGORY_TO_PACKAGE_TYPE[project.category] : undefined;
+
+  useEffect(() => {
+    if (!project) return;
+
+    const pageTitle = project.seoTitle || `${project.title} | Case Study - B2bfiy Dhaka`;
+    const pageDesc = project.seoDescription || project.shortDescription || `Case study: ${project.title} by B2bfiy - premier digital agency in Dhaka.`;
+    const pageKeywords = (project.tags && project.tags.length > 0)
+      ? `${project.tags.join(", ")}, ${project.category}, digital marketing agency Dhaka`
+      : `case study, ${project.category}, digital marketing Dhaka, B2bfiy`;
+
+    document.title = pageTitle;
+
+    const updateMeta = (selector: string, attr: string, value: string) => {
+      let tag = document.querySelector(selector);
+      if (tag) {
+        tag.setAttribute(attr, value);
+      }
+    };
+
+    updateMeta('meta[name="description"]', "content", pageDesc);
+    updateMeta('meta[name="keywords"]', "content", pageKeywords);
+    updateMeta('meta[property="og:title"]', "content", pageTitle);
+    updateMeta('meta[property="og:description"]', "content", pageDesc);
+    updateMeta('meta[name="twitter:title"]', "content", pageTitle);
+    updateMeta('meta[name="twitter:description"]', "content", pageDesc);
+
+    if (project.thumbnail) {
+      updateMeta('meta[property="og:image"]', "content", project.thumbnail);
+    }
+
+    // Inject CreativeWork schema
+    const scriptId = "project-structured-data";
+    let scriptTag = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (!scriptTag) {
+      scriptTag = document.createElement("script");
+      scriptTag.id = scriptId;
+      scriptTag.type = "application/ld+json";
+      document.head.appendChild(scriptTag);
+    }
+    scriptTag.textContent = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "CreativeWork",
+      "name": project.title,
+      "headline": project.seoTitle || project.title,
+      "description": pageDesc,
+      "creator": {
+        "@type": "Organization",
+        "name": "B2bfiy",
+        "url": "https://b2bfiy.com"
+      },
+      "image": project.thumbnail || "",
+      "dateCreated": project.projectDate || "2026-01-01",
+      "keywords": pageKeywords,
+      "about": project.category
+    });
+
+    return () => {
+      const el = document.getElementById(scriptId);
+      if (el) el.remove();
+    };
+  }, [project]);
 
   const handleViewPricingClick = () => {
     if (!packageCategoryKey) return;
