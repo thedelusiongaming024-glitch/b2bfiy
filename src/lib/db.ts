@@ -216,8 +216,12 @@ export async function saveSiteContentToDb(content: SiteContent): Promise<boolean
   try {
     await jsonFetch("/api/content", { method: "PUT", body: JSON.stringify(content) });
     return true;
-  } catch (e) {
-    console.error("Error saving site_content to Neon:", e);
+  } catch (e: any) {
+    if (e?.message?.includes("Not signed in")) {
+      // Normal when guest/anonymous visits or updates local state without admin session
+      return false;
+    }
+    console.warn("Could not sync site_content to Neon:", e?.message || e);
     return false;
   }
 }
@@ -226,8 +230,11 @@ export async function syncPortfoliosToDb(items: PortfolioProject[]): Promise<boo
   try {
     await jsonFetch("/api/portfolios", { method: "PUT", body: JSON.stringify(items) });
     return true;
-  } catch (e) {
-    console.error("Error syncing portfolios to Neon:", e);
+  } catch (e: any) {
+    if (e?.message?.includes("Not signed in")) {
+      return false;
+    }
+    console.warn("Could not sync portfolios to Neon:", e?.message || e);
     return false;
   }
 }
@@ -236,8 +243,11 @@ export async function syncPackagesToDb(items: ServicePackage[]): Promise<boolean
   try {
     await jsonFetch("/api/packages", { method: "PUT", body: JSON.stringify(items) });
     return true;
-  } catch (e) {
-    console.error("Error syncing packages to Neon:", e);
+  } catch (e: any) {
+    if (e?.message?.includes("Not signed in")) {
+      return false;
+    }
+    console.warn("Could not sync packages to Neon:", e?.message || e);
     return false;
   }
 }
@@ -246,8 +256,11 @@ export async function syncMediaItemsToDb(items: MediaItem[]): Promise<boolean> {
   try {
     await jsonFetch("/api/media", { method: "PUT", body: JSON.stringify(items) });
     return true;
-  } catch (e) {
-    console.error("Error syncing media items to Neon:", e);
+  } catch (e: any) {
+    if (e?.message?.includes("Not signed in")) {
+      return false;
+    }
+    console.warn("Could not sync media items to Neon:", e?.message || e);
     return false;
   }
 }

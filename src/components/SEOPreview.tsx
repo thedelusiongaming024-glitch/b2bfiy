@@ -156,7 +156,7 @@ export default function SEOPreview({
           <div className="max-w-2xl space-y-2 font-sans">
             {/* Desktop URL Breadcrumb */}
             <div className="flex items-center gap-2 text-xs">
-              {faviconUrl ? (
+              {faviconUrl && faviconUrl.trim() ? (
                 <img
                   src={faviconUrl}
                   alt="Favicon"
@@ -190,7 +190,7 @@ export default function SEOPreview({
           <div className="max-w-sm mx-auto bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-2.5 font-sans">
             {/* Mobile Header Breadcrumb */}
             <div className="flex items-center gap-2.5">
-              {faviconUrl ? (
+              {faviconUrl && faviconUrl.trim() ? (
                 <img
                   src={faviconUrl}
                   alt="Favicon"
@@ -224,7 +224,7 @@ export default function SEOPreview({
           <div className="max-w-md mx-auto bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs font-sans">
             {/* Social Share Image Banner */}
             <div className="h-40 bg-gradient-to-tr from-[#101828] via-[#1f2937] to-[#FF2D2D]/80 flex flex-col items-center justify-center text-white p-4 relative overflow-hidden text-center">
-              {ogImage ? (
+              {ogImage && ogImage.trim() ? (
                 <img
                   src={ogImage}
                   alt="Social preview"

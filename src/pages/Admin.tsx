@@ -1492,7 +1492,13 @@ export default function Admin({
                     {portfolios.map((p) => (
                       <div key={p.id} className="border border-[#F2E4E2] p-4 rounded-xl flex items-center justify-between space-x-4 bg-[#FFF7F5]">
                         <div className="flex items-center space-x-3 overflow-hidden">
-                          <img src={p.thumbnail} alt="" className="w-12 h-12 rounded object-cover border border-[#F2E4E2] shrink-0" referrerPolicy="no-referrer" />
+                          {p.thumbnail ? (
+                            <img src={p.thumbnail} alt="" className="w-12 h-12 rounded object-cover border border-[#F2E4E2] shrink-0" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-gray-200 border border-[#F2E4E2] shrink-0 flex items-center justify-center text-[10px] text-gray-500 font-bold">
+                              No Img
+                            </div>
+                          )}
                           <div className="overflow-hidden">
                             <span className="text-xs font-extrabold text-[#101828] block truncate">{p.title}</span>
                             <span className="text-[10px] text-[#475467] block font-mono">/{p.slug}</span>
@@ -3265,7 +3271,13 @@ export default function Admin({
                             <div className="space-y-1">
                               <span className="text-[8px] font-bold uppercase text-gray-400">Avatar Image</span>
                               <div className="flex items-center gap-2">
-                                <img src={rev.avatar} alt={rev.name} className="w-7 h-7 rounded-full object-cover border border-[#F2E4E2]" referrerPolicy="no-referrer" />
+                                {rev.avatar ? (
+                                  <img src={rev.avatar} alt={rev.name} className="w-7 h-7 rounded-full object-cover border border-[#F2E4E2]" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-full bg-[#FFE8E5] text-[#FF2D2D] font-bold text-[10px] flex items-center justify-center border border-[#F2E4E2]">
+                                    {(rev.name || "?").charAt(0).toUpperCase()}
+                                  </div>
+                                )}
                                 <div className="flex gap-1 flex-1">
                                   <div className="relative flex-1">
                                     <input
@@ -3552,12 +3564,16 @@ export default function Admin({
 
                           {/* Image preview */}
                           <div className="aspect-video w-full rounded-lg overflow-hidden border border-[#F2E4E2] bg-gray-50 flex items-center justify-center relative">
-                            <img
-                              src={currentUrl}
-                              alt={svc.label}
-                              className="w-full h-full object-cover animate-fade-in"
-                              referrerPolicy="no-referrer"
-                            />
+                            {currentUrl ? (
+                              <img
+                                src={currentUrl}
+                                alt={svc.label}
+                                className="w-full h-full object-cover animate-fade-in"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <span className="text-[10px] text-gray-400">No Image</span>
+                            )}
                             <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[8px] px-2 py-0.5 rounded font-mono">
                               Preview
                             </span>
@@ -3743,8 +3759,12 @@ export default function Admin({
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {mediaItems.map((item) => (
                     <div key={item.id} className="border border-[#F2E4E2] p-3 rounded-xl bg-white space-y-2 relative group text-left">
-                      <div className="aspect-video w-full rounded overflow-hidden bg-[#FFF7F5] border border-[#F2E4E2]">
-                        <img src={item.url} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <div className="aspect-video w-full rounded overflow-hidden bg-[#FFF7F5] border border-[#F2E4E2] flex items-center justify-center">
+                        {item.url ? (
+                          <img src={item.url} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="text-[10px] text-gray-400">No Asset</span>
+                        )}
                       </div>
                       <div className="overflow-hidden">
                         <span className="text-[11px] font-bold text-[#101828] block truncate">{item.name}</span>
@@ -4065,12 +4085,16 @@ export default function Admin({
                       className="border border-[#F2E4E2] hover:border-[#FF2D2D] p-2 rounded-2xl cursor-pointer bg-[#FFF7F5] group transition-all text-center space-y-2 hover:shadow-xs"
                     >
                       <div className="bg-white border border-[#F2E4E2]/50 rounded-xl h-24 flex items-center justify-center overflow-hidden p-2 relative">
-                        <img
-                          src={item.url}
-                          alt={item.name}
-                          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
-                          referrerPolicy="no-referrer"
-                        />
+                        {item.url ? (
+                          <img
+                            src={item.url}
+                            alt={item.name}
+                            className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <span className="text-[9px] text-gray-400">No Asset</span>
+                        )}
                       </div>
                       <div className="text-left">
                         <span className="text-[10px] font-bold text-[#101828] block truncate leading-tight">{item.name}</span>
