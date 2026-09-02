@@ -292,10 +292,10 @@ export default function App() {
     syncWithDb();
   }, []);
 
-  // Update page title, favicon, SEO meta tags, Google Verification, and Meta Pixel dynamically when siteContent changes
+  // Update page title, favicon, SEO meta tags, Google Verification, Schema.org JSON-LD, and Meta Pixel dynamically when siteContent changes
   useEffect(() => {
     // 1. Dynamic Title
-    const activeTitle = siteContent.metaTitle?.trim() || (siteContent.brandName ? `${siteContent.brandName} - Complete Creative Agency` : "B2bfiy - Digital Agency & Creative Solutions");
+    const activeTitle = siteContent.metaTitle?.trim() || (siteContent.brandName ? `${siteContent.brandName} - Complete Creative Agency` : "B2bfiy | Premier Digital Agency in Dhaka - Web Design, Branding & Video");
     document.title = activeTitle;
 
     // OpenGraph / Twitter Title
@@ -314,6 +314,41 @@ export default function App() {
       document.getElementsByTagName("head")[0].appendChild(twitterTitle);
     }
     twitterTitle.content = activeTitle;
+
+    // OpenGraph Site Name & Type
+    let ogSiteName = document.querySelector("meta[property='og:site_name']") as HTMLMetaElement | null;
+    if (!ogSiteName) {
+      ogSiteName = document.createElement("meta");
+      ogSiteName.setAttribute("property", "og:site_name");
+      document.getElementsByTagName("head")[0].appendChild(ogSiteName);
+    }
+    ogSiteName.content = siteContent.brandName || "B2bfiy";
+
+    let ogType = document.querySelector("meta[property='og:type']") as HTMLMetaElement | null;
+    if (!ogType) {
+      ogType = document.createElement("meta");
+      ogType.setAttribute("property", "og:type");
+      document.getElementsByTagName("head")[0].appendChild(ogType);
+    }
+    ogType.content = "website";
+
+    // Canonical link tag
+    let canonical = document.querySelector("link[rel='canonical']") as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.getElementsByTagName("head")[0].appendChild(canonical);
+    }
+    canonical.href = typeof window !== "undefined" ? window.location.origin + window.location.pathname : "https://b2bfiy.com";
+
+    // Robots meta tag for maximum search crawling and rich snippets
+    let robotsMeta = document.querySelector("meta[name='robots']") as HTMLMetaElement | null;
+    if (!robotsMeta) {
+      robotsMeta = document.createElement("meta");
+      robotsMeta.name = "robots";
+      document.getElementsByTagName("head")[0].appendChild(robotsMeta);
+    }
+    robotsMeta.content = "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
 
     // 2. Dynamic Favicon
     if (siteContent.faviconUrl) {
@@ -373,6 +408,99 @@ export default function App() {
         document.getElementsByTagName("head")[0].appendChild(metaGsv);
       }
       metaGsv.content = siteContent.googleSiteVerification;
+    }
+
+    // Dynamic Schema.org JSON-LD Structured Data
+    if (typeof window !== "undefined") {
+      const schemaScriptId = "schema-org-jsonld";
+      let schemaScript = document.getElementById(schemaScriptId) as HTMLScriptElement | null;
+      if (!schemaScript) {
+        schemaScript = document.createElement("script");
+        schemaScript.id = schemaScriptId;
+        schemaScript.type = "application/ld+json";
+        document.head.appendChild(schemaScript);
+      }
+
+      const currentOrigin = window.location.origin;
+      const structuredData = {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "ProfessionalService",
+            "@id": `${currentOrigin}/#agency`,
+            "name": siteContent.brandName || "B2bfiy",
+            "url": currentOrigin,
+            "logo": siteContent.logoUrl || `${currentOrigin}/logo.png`,
+            "image": siteContent.logoUrl || `${currentOrigin}/logo.png`,
+            "description": siteContent.metaDescription || "Top-rated digital agency in Dhaka offering high-converting web design, video production, graphic design, and social media management.",
+            "telephone": siteContent.floatingCall || "+8801712345678",
+            "email": "hello@b2bfiy.com",
+            "priceRange": "$$",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Dhaka",
+              "addressRegion": "Dhaka Division",
+              "addressCountry": "BD"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": "23.8103",
+              "longitude": "90.4125"
+            },
+            "areaServed": [
+              { "@type": "Country", "name": "Bangladesh" },
+              { "@type": "City", "name": "Dhaka" },
+              { "@type": "Country", "name": "United States" },
+              { "@type": "Country", "name": "United Kingdom" }
+            ],
+            "hasOfferCatalog": {
+              "@type": "OfferCatalog",
+              "name": "Digital Services",
+              "itemListElement": [
+                {
+                  "@type": "Offer",
+                  "itemOffered": {
+                    "@type": "Service",
+                    "name": "High-Converting Web Development & UI/UX"
+                  }
+                },
+                {
+                  "@type": "Offer",
+                  "itemOffered": {
+                    "@type": "Service",
+                    "name": "Brand Identity & Graphic Design"
+                  }
+                },
+                {
+                  "@type": "Offer",
+                  "itemOffered": {
+                    "@type": "Service",
+                    "name": "Cinematic & Viral Video Editing"
+                  }
+                },
+                {
+                  "@type": "Offer",
+                  "itemOffered": {
+                    "@type": "Service",
+                    "name": "Social Media Management & Growth Retainers"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": `${currentOrigin}/#website`,
+            "url": currentOrigin,
+            "name": siteContent.brandName || "B2bfiy",
+            "description": siteContent.metaDescription,
+            "publisher": {
+              "@id": `${currentOrigin}/#agency`
+            }
+          }
+        ]
+      };
+      schemaScript.textContent = JSON.stringify(structuredData);
     }
 
     // 6. Dynamic Meta Pixel (Facebook Pixel) Setup
