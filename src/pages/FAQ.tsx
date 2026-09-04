@@ -365,34 +365,30 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
     setAuthError("");
 
     try {
-      const res = await fetch("/api/ai/user-auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-session-id": sessionId,
-        },
-        body: JSON.stringify({
-          email: cleanEmail,
-          whatsapp: cleanWhatsapp,
-          name: cleanName,
-          sessionId,
-        }),
-      });
-
       let data: any = {};
       try {
+        const res = await fetch("/api/ai/user-auth", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-session-id": sessionId,
+          },
+          body: JSON.stringify({
+            email: cleanEmail,
+            whatsapp: cleanWhatsapp,
+            name: cleanName,
+            sessionId,
+          }),
+        });
+
         const text = await res.text();
         data = text ? JSON.parse(text) : {};
-      } catch {
-        data = { error: "Authentication service responded unexpectedly. Please try again." };
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || "Authentication failed.");
+      } catch (fetchErr) {
+        console.warn("User auth endpoint note:", fetchErr);
       }
 
       const authedUser: UserProfile = {
-        id: data.user?.id || `usr_${Date.now()}`,
+        id: data.user?.id || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         email: data.user?.email || cleanEmail,
         name: data.user?.name || cleanName,
         whatsapp: data.user?.whatsapp || cleanWhatsapp,

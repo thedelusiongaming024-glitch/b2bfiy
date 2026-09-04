@@ -34,71 +34,76 @@ export function registerAiRoutes(app: Express) {
         return;
       }
 
-      // Check if user already exists
-      const existing = await query<{
-        id: string;
-        email: string;
-        name: string | null;
-        whatsapp: string | null;
-        role: string;
-      }>(
-        "SELECT id, email, name, whatsapp, role FROM users WHERE LOWER(email) = LOWER($1)",
-        [email]
-      );
-
-      let targetUserId: string;
+      let targetUserId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       let isNewUser = false;
       let userRole = "user";
       let resolvedName = name;
       let resolvedWhatsapp = whatsapp;
 
-      if (existing.length > 0) {
-        const user = existing[0];
-        targetUserId = user.id;
-        userRole = user.role || "user";
-        resolvedName = name || user.name || "";
-        resolvedWhatsapp = whatsapp || user.whatsapp || "";
-
+      if (hasDatabaseUrl()) {
         try {
-          await query(
-            `UPDATE users
-             SET whatsapp = COALESCE(NULLIF($1, ''), whatsapp),
-                 name = COALESCE(NULLIF($2, ''), name),
-                 last_login_at = NOW(),
-                 updated_at = NOW()
-             WHERE id = $3`,
-            [whatsapp || null, name || null, user.id]
+          // Check if user already exists
+          const existing = await query<{
+            id: string;
+            email: string;
+            name: string | null;
+            whatsapp: string | null;
+            role: string;
+          }>(
+            "SELECT id, email, name, whatsapp, role FROM users WHERE LOWER(email) = LOWER($1)",
+            [email]
           );
-        } catch (updateErr) {
-          console.warn("User update notice:", updateErr);
-        }
-      } else {
-        isNewUser = true;
-        targetUserId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        await query(
-          `INSERT INTO users (id, name, email, whatsapp, role, created_at, updated_at, last_login_at)
-           VALUES ($1, $2, $3, $4, 'user', NOW(), NOW(), NOW())`,
-          [targetUserId, name || null, email, whatsapp || null]
-        );
-      }
 
-      // Automatically link any previous anonymous session conversations and tickets to this authenticated user
-      if (sessionId) {
-        try {
-          await query(
-            `UPDATE conversations
-             SET user_id = $1, user_email = $2, user_whatsapp = COALESCE(user_whatsapp, $3)
-             WHERE session_id = $4 AND (user_email IS NULL OR user_email = '')`,
-            [targetUserId, email, whatsapp || null, sessionId]
-          );
-          await query(
-            `UPDATE support_tickets
-             SET user_id = $1, user_email = $2, user_whatsapp = COALESCE(user_whatsapp, $3)
-             WHERE session_id = $4 AND (user_email IS NULL OR user_email = '')`,
-            [targetUserId, email, whatsapp || null, sessionId]
-          );
-        } catch (linkErr) {
-          console.warn("Session auto-linking warning:", linkErr);
+          if (existing.length > 0) {
+            const user = existing[0];
+            targetUserId = user.id;
+            userRole = user.role || "user";
+            resolvedName = name || user.name || "";
+            resolvedWhatsapp = whatsapp || user.whatsapp || "";
+
+            try {
+              await query(
+                `UPDATE users
+                 SET whatsapp = COALESCE(NULLIF($1, ''), whatsapp),
+                     name = COALESCE(NULLIF($2, ''), name),
+                     last_login_at = NOW(),
+                     updated_at = NOW()
+                 WHERE id = $3`,
+                [whatsapp || null, name || null, user.id]
+              );
+            } catch (updateErr) {
+              console.warn("User update notice:", updateErr);
+            }
+          } else {
+            isNewUser = true;
+            await query(
+              `INSERT INTO users (id, name, email, whatsapp, role, created_at, updated_at, last_login_at)
+               VALUES ($1, $2, $3, $4, 'user', NOW(), NOW(), NOW())`,
+              [targetUserId, name || null, email, whatsapp || null]
+            );
+          }
+
+          // Automatically link any previous anonymous session conversations and tickets to this authenticated user
+          if (sessionId) {
+            try {
+              await query(
+                `UPDATE conversations
+                 SET user_id = $1, user_email = $2, user_whatsapp = COALESCE(user_whatsapp, $3)
+                 WHERE session_id = $4 AND (user_email IS NULL OR user_email = '')`,
+                [targetUserId, email, whatsapp || null, sessionId]
+              );
+              await query(
+                `UPDATE support_tickets
+                 SET user_id = $1, user_email = $2, user_whatsapp = COALESCE(user_whatsapp, $3)
+                 WHERE session_id = $4 AND (user_email IS NULL OR user_email = '')`,
+                [targetUserId, email, whatsapp || null, sessionId]
+              );
+            } catch (linkErr) {
+              console.warn("Session auto-linking warning:", linkErr);
+            }
+          }
+        } catch (dbErr) {
+          console.warn("User Auth database operation notice:", dbErr);
         }
       }
 

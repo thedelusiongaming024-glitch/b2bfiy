@@ -1486,8 +1486,24 @@ function createListTableHandler(tableName: string) {
 export function createApiApp() {
   const app = express();
 
+  // 1. Handle pre-parsed bodies in serverless/Vercel environments so body-parser doesn't hang
+  app.use((req: any, _res: any, next: any) => {
+    if (req.body && typeof req.body === "object") {
+      req._body = true;
+    }
+
+    // 2. Normalize path if query path is present from Vercel rewrites
+    if (req.query?.path) {
+      const rawP = Array.isArray(req.query.path) ? req.query.path.join("/") : req.query.path;
+      if (rawP && typeof rawP === "string") {
+        const clean = rawP.startsWith("/") ? rawP : `/${rawP}`;
+        req.url = clean.startsWith("/api") ? clean : `/api${clean}`;
+      }
+    }
+    next();
+  });
+
   app.use(express.json({ limit: "10mb" }));
-  app.use(express.text({ type: ["text/*", "application/json"] }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
@@ -1842,18 +1858,63 @@ export function createApiApp() {
 const app = createApiApp();
 
 export default function handler(req: any, res: any) {
-  // 1. Recover true original URL when rewritten by Vercel
-  const forwardedUri =
-    req.headers?.["x-forwarded-uri"] ||
-    req.headers?.["x-matched-path"] ||
-    req.headers?.["x-invoke-path"] ||
-    req.query?.path;
+  // 1. Recover true target URL when rewritten by Vercel
+  let normalizedPath = "";
 
-  if (typeof forwardedUri === "string" && forwardedUri && forwardedUri !== "/api" && forwardedUri !== "/api/index") {
-    req.url = forwardedUri.startsWith("/") ? forwardedUri : `/${forwardedUri}`;
-    if (!req.url.startsWith("/api") && !req.url.startsWith("/sitemap") && !req.url.startsWith("/robots")) {
-      req.url = `/api${req.url}`;
+  // Priority 1: req.query.path (from /api/(.*) -> /api?path=$1 in vercel.json)
+  if (req.query?.path) {
+    const rawP = Array.isArray(req.query.path) ? req.query.path.join("/") : req.query.path;
+    if (rawP && typeof rawP === "string") {
+      normalizedPath = rawP.startsWith("/") ? rawP : `/${rawP}`;
     }
+  }
+
+  // Priority 2: Standard Vercel original URI headers
+  if (!normalizedPath) {
+    const headerUri =
+      req.headers?.["x-forwarded-uri"] ||
+      req.headers?.["x-vercel-original-uri"] ||
+      req.headers?.["x-original-uri"];
+    if (typeof headerUri === "string" && headerUri && headerUri !== "/api" && headerUri !== "/api/index") {
+      normalizedPath = headerUri;
+    }
+  }
+
+  // Priority 3: Extract from req.url directly if it has path param or direct subpath
+  if (!normalizedPath && typeof req.url === "string") {
+    if (req.url.includes("path=")) {
+      try {
+        const dummyUrl = new URL(req.url, "http://localhost");
+        const p = dummyUrl.searchParams.get("path");
+        if (p) normalizedPath = p.startsWith("/") ? p : `/${p}`;
+      } catch {}
+    }
+    if (!normalizedPath) {
+      const pathname = req.url.split("?")[0];
+      if (pathname && pathname !== "/" && pathname !== "/api" && pathname !== "/api/index") {
+        normalizedPath = pathname;
+      }
+    }
+  }
+
+  if (normalizedPath) {
+    const clean = normalizedPath.replace(/^\/api(\/|$)/, "/");
+    let target = `/api${clean.startsWith("/") ? clean : `/${clean}`}`;
+
+    // Preserve search params except the internal routing 'path' parameter
+    const qIndex = (req.originalUrl || req.url).indexOf("?");
+    if (qIndex !== -1) {
+      try {
+        const rawQs = (req.originalUrl || req.url).substring(qIndex);
+        const searchParams = new URLSearchParams(rawQs);
+        searchParams.delete("path");
+        const remaining = searchParams.toString();
+        if (remaining) {
+          target += `?${remaining}`;
+        }
+      } catch {}
+    }
+    req.url = target;
   }
 
   // 2. Add CORS headers for cross-origin or preview deployments
