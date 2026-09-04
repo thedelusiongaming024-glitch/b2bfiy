@@ -161,6 +161,11 @@ export default function Footer({ setRoute, siteContent }: FooterProps) {
                 </button>
               </li>
               <li>
+                <button onClick={() => handleNavClick("faq")} className="hover:text-purple-400 transition-colors text-left font-semibold text-purple-300">
+                  {t("AI FAQ & Support", "এআই প্রশ্নোত্তর ও সাপোর্ট")}
+                </button>
+              </li>
+              <li>
                 <button onClick={() => handleNavClick("portfolio")} className="hover:text-[#FF2D2D] transition-colors text-left">
                   {t("Portfolio")}
                 </button>

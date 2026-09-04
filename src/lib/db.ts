@@ -9,11 +9,39 @@ import { SiteContent, PortfolioProject, ServicePackage, MediaItem, Lead } from "
 // api/packages.ts, api/media.ts, api/leads.ts, and api/admin/*.ts.
 // -----------------------------------------------------------------
 
-async function jsonFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
+export function getAdminToken(): string | null {
+  try {
+    return localStorage.getItem("b2bfiy_admin_token");
+  } catch {
+    return null;
+  }
+}
+
+export function setAdminToken(token: string | null) {
+  try {
+    if (token) {
+      localStorage.setItem("b2bfiy_admin_token", token);
+    } else {
+      localStorage.removeItem("b2bfiy_admin_token");
+    }
+  } catch {}
+}
+
+export async function jsonFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
+  const token = getAdminToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((options?.headers as Record<string, string>) || {}),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+    headers["X-Admin-Token"] = token;
+  }
+
   const res = await fetch(url, {
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers,
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -131,14 +159,18 @@ export interface AdminSession {
 }
 
 export async function signInAdmin(email: string, password: string): Promise<AdminSession> {
-  const data = await jsonFetch<{ userId: string; email: string }>("/api/admin/login", {
+  const data = await jsonFetch<{ userId: string; email: string; token?: string }>("/api/admin/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  if (data.token) {
+    setAdminToken(data.token);
+  }
   return { userId: data.userId, email: data.email };
 }
 
 export async function signOutAdmin(): Promise<void> {
+  setAdminToken(null);
   try {
     await jsonFetch("/api/admin/logout", { method: "POST" });
   } catch (e) {
@@ -148,7 +180,10 @@ export async function signOutAdmin(): Promise<void> {
 
 export async function getAdminSession(): Promise<AdminSession | null> {
   try {
-    const data = await jsonFetch<{ session: AdminSession | null }>("/api/admin/session");
+    const data = await jsonFetch<{ session: AdminSession | null; token?: string }>("/api/admin/session");
+    if (data.token) {
+      setAdminToken(data.token);
+    }
     return data.session;
   } catch {
     return null;

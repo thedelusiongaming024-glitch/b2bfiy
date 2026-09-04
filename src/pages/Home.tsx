@@ -19,7 +19,6 @@ import {
   Play
 } from "lucide-react";
 import { SiteContent, PortfolioProject, ServicePackage, Lead } from "../types";
-import { initialSiteContent } from "../data/initialData";
 import { useLanguage } from "../lib/LanguageContext";
 import ImageWithSkeleton from "../components/ImageWithSkeleton";
 import VideoModal from "../components/VideoModal";
@@ -79,7 +78,20 @@ export default function Home({
         { name: "Tech Startup", logoText: "Tech Startup" }
       ];
 
-  const faqs = [
+  const [dbFaqs, setDbFaqs] = useState<{ q: string; a: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/ai/faqs/public")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.faqs && Array.isArray(data.faqs) && data.faqs.length > 0) {
+          setDbFaqs(data.faqs.map((f: any) => ({ q: f.question, a: f.answer })));
+        }
+      })
+      .catch((err) => console.warn("Failed to load DB faqs for Home:", err));
+  }, []);
+
+  const defaultFaqs = [
     {
       q: "How much does a project cost?",
       a: "Our monthly growth retainers start from ৳12,000/month, and custom web development starts from ৳15,000. All prices are completely transparent with zero hidden costs."
@@ -105,6 +117,8 @@ export default function Home({
       a: "The absolute best way is to submit a Request for a Free Digital Audit or chat directly with us on WhatsApp. We will analyze your online presence and recommend the best plan."
     }
   ];
+
+  const displayFaqs = dbFaqs.length > 0 ? dbFaqs : defaultFaqs;
 
   const handleProjectClick = (slug: string) => {
     setSelectedProjectSlug(slug);
@@ -1202,10 +1216,7 @@ export default function Home({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto text-left">
-            {((siteContent.testimonials && siteContent.testimonials.length > 0) 
-              ? siteContent.testimonials 
-              : initialSiteContent.testimonials
-            ).map((rev, idx) => (
+            {(siteContent.testimonials || []).map((rev, idx) => (
               <motion.div 
                 key={rev.id || idx} 
                 initial={{ opacity: 0, y: 20 }}
@@ -1401,7 +1412,7 @@ export default function Home({
           </div>
 
           <div className="space-y-4 max-w-3xl mx-auto text-left">
-            {faqs.map((faq, idx) => {
+            {displayFaqs.map((faq, idx) => {
               const isOpen = activeFaq === idx;
               return (
                 <div

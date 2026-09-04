@@ -155,3 +155,78 @@ export interface MediaItem {
   name: string;
   category: "mockup" | "graphic" | "video" | "photo";
 }
+
+// AI FAQ, RAG & Support System Types
+export interface FaqItem {
+  id: string;
+  category_id?: string;
+  category?: string;
+  category_name?: string;
+  question: string;
+  answer: string;
+  status: "published" | "draft" | "archived";
+  show_in_browse?: boolean;
+  display_order?: number;
+  sortOrder?: number;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FaqCategory {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  title: string;
+  content: string;
+  status: "published" | "draft";
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+  chunk_count?: number;
+}
+
+export interface SupportTicket {
+  id: string;
+  ticket_number?: number;
+  ticketNumber?: number;
+  session_id?: string;
+  conversation_id?: string;
+  question: string;
+  status: "OPEN" | "IN_PROGRESS" | "ANSWERED" | "CLOSED";
+  admin_answer?: string;
+  assigned_to?: string;
+  created_at: string;
+  answered_at?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversation_id?: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  source: "USER" | "AI" | "FAQ" | "RAG" | "HUMAN" | "SYSTEM";
+  created_at: string;
+  ticket?: {
+    id: string;
+    ticketNumber: number;
+    status: string;
+    question: string;
+    createdAt: string;
+  };
+}
+
+export interface ConversationItem {
+  id: string;
+  session_id: string;
+  created_at: string;
+  updated_at: string;
+  message_count?: number;
+  first_message?: string;
+}
+

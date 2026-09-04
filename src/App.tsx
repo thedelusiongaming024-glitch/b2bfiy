@@ -17,8 +17,7 @@ import {
   getDbStatus
 } from "./lib/db";
 
-// Data
-import { initialSiteContent, initialPortfolios, initialPackages, initialMedia } from "./data/initialData";
+// Tracking
 import { trackPageView, trackLead } from "./lib/serverTracking";
 
 // Components
@@ -44,6 +43,7 @@ const Contact = lazy(() => import("./pages/Contact"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Admin = lazy(() => import("./pages/Admin"));
+const FAQ = lazy(() => import("./pages/FAQ"));
 
 // Helper: Safe LocalStorage set to prevent QuotaExceededError
 export function safeSetLocalStorage(key: string, value: string): boolean {
@@ -81,7 +81,8 @@ export function sortPortfolios(items: PortfolioProject[]): PortfolioProject[] {
 export function parseRouteFromLocation(): { route: string; slug: string } {
   try {
     const rawPath = window.location.pathname.replace(/\/+$/, "").toLowerCase();
-    if (rawPath === "/admin") return { route: "admin", slug: "" };
+    if (rawPath === "/faq") return { route: "faq", slug: "" };
+    if (rawPath === "/admin" || rawPath === "/admin/ai") return { route: "admin", slug: rawPath === "/admin/ai" ? "ai" : "" };
     if (rawPath === "/services") return { route: "services", slug: "" };
     if (rawPath === "/portfolio") return { route: "portfolio", slug: "" };
     if (rawPath.startsWith("/portfolio/")) {
@@ -102,6 +103,7 @@ export function parseRouteFromLocation(): { route: string; slug: string } {
 
 export function getPathForRoute(route: string, slug?: string): string {
   switch (route) {
+    case "faq": return "/faq";
     case "services": return "/services";
     case "portfolio": return "/portfolio";
     case "portfolio-detail": return slug ? `/portfolio/${slug}` : "/portfolio";
@@ -177,6 +179,20 @@ export default function App() {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  // Ensure every page load, route change, and page refresh starts cleanly at the top
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      try {
+        window.history.scrollRestoration = "manual";
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [currentRoute, selectedProjectSlug]);
+
   const [showIntro, setShowIntro] = useState<boolean>(() => {
     try {
       const hasSeen = sessionStorage.getItem("b2bfiy_seen_intro");
@@ -195,12 +211,54 @@ export default function App() {
     }
   };
 
-  // Central Dynamic State holding all entities
-  const [siteContent, setSiteContent] = useState<SiteContent>(initialSiteContent);
-  const [portfolios, setPortfolios] = useState<PortfolioProject[]>(() => sortPortfolios(initialPortfolios));
-  const [packages, setPackages] = useState<ServicePackage[]>(initialPackages);
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(initialMedia);
-  const [leads, setLeads] = useState<Lead[]>([]);
+  // Safe initial site content structure while connecting to database
+  const emptySiteContent: SiteContent = {
+    brandName: "B2bfiy",
+    phone: "+880 1712-345678",
+    email: "hello@b2bfiy.com",
+    socials: { facebook: "", instagram: "", linkedin: "", whatsapp: "+8801712345678" },
+    hero: { badge: "", title: "", highlight: "", description: "", trustText: "" },
+    stats: [],
+    whyChooseUs: [],
+    testimonials: []
+  };
+
+  // Central Dynamic State holding all entities directly from live Neon Database
+  const [siteContent, setSiteContent] = useState<SiteContent>(() => {
+    try {
+      const storedContent = localStorage.getItem("b2bfiy_site_content");
+      if (storedContent) return JSON.parse(storedContent);
+    } catch {}
+    return emptySiteContent;
+  });
+  const [portfolios, setPortfolios] = useState<PortfolioProject[]>(() => {
+    try {
+      const storedPortfolios = localStorage.getItem("b2bfiy_portfolios");
+      if (storedPortfolios) return sortPortfolios(JSON.parse(storedPortfolios));
+    } catch {}
+    return [];
+  });
+  const [packages, setPackages] = useState<ServicePackage[]>(() => {
+    try {
+      const storedPackages = localStorage.getItem("b2bfiy_packages");
+      if (storedPackages) return JSON.parse(storedPackages);
+    } catch {}
+    return [];
+  });
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
+    try {
+      const storedMedia = localStorage.getItem("b2bfiy_media_items");
+      if (storedMedia) return JSON.parse(storedMedia);
+    } catch {}
+    return [];
+  });
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    try {
+      const storedLeads = localStorage.getItem("b2bfiy_leads");
+      if (storedLeads) return JSON.parse(storedLeads);
+    } catch {}
+    return [];
+  });
   const [isDbSynced, setIsDbSynced] = useState<boolean>(false);
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -225,9 +283,9 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // 1. Read from localStorage on mount + Asynchronously synchronize with Neon for real-time updates
+  // 1. Fetch live data from Neon database immediately on mount
   useEffect(() => {
-    // A. Sync from LocalStorage Cache first for instant load
+    // Read from cached localStorage for instant first paint
     try {
       const storedContent = localStorage.getItem("b2bfiy_site_content");
       if (storedContent) setSiteContent(JSON.parse(storedContent));
@@ -235,8 +293,6 @@ export default function App() {
       const storedPortfolios = localStorage.getItem("b2bfiy_portfolios");
       if (storedPortfolios) {
         setPortfolios(sortPortfolios(JSON.parse(storedPortfolios)));
-      } else {
-        setPortfolios(sortPortfolios(initialPortfolios));
       }
 
       const storedPackages = localStorage.getItem("b2bfiy_packages");
@@ -249,8 +305,6 @@ export default function App() {
       if (storedLeads) {
         setLeads(JSON.parse(storedLeads));
       }
-      // NOTE: No mock/demo leads are seeded here. The Admin leads inbox starts
-      // empty and only ever shows real submissions from the site's forms.
     } catch (err) {
       console.error("Failed to read from localStorage:", err);
     }
@@ -778,6 +832,8 @@ export default function App() {
         return <PrivacyPolicy siteContent={siteContent} />;
       case "terms":
         return <Terms siteContent={siteContent} />;
+      case "faq":
+        return <FAQ setRoute={setRoute} siteContent={siteContent} />;
       case "admin":
         return (
           <Admin

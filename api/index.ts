@@ -5,6 +5,9 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
+import { registerAiRoutes } from "./ai/routes";
+import { indexDocument } from "./ai/ragEngine";
+import { invalidateDatabaseContextCache } from "./ai/databaseContext";
 
 // ==========================================
 // 1. DATABASE CONNECTION (PostgreSQL / Neon)
@@ -117,8 +120,128 @@ export async function ensureSchema(): Promise<void> {
 
         CREATE INDEX IF NOT EXISTS idx_analytics_events_ts ON analytics_events(ts);
         CREATE INDEX IF NOT EXISTS idx_leads_submitted_at ON leads(submitted_at DESC);
+
+        -- AI FAQ & RAG Architecture
+        CREATE EXTENSION IF NOT EXISTS vector;
+
+        CREATE TABLE IF NOT EXISTS users (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255),
+          email VARCHAR(255) UNIQUE,
+          password_hash TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS faq_categories (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL UNIQUE,
+          description TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS faqs (
+          id VARCHAR(255) PRIMARY KEY,
+          category_id VARCHAR(255) REFERENCES faq_categories(id) ON DELETE SET NULL,
+          question TEXT NOT NULL,
+          answer TEXT NOT NULL,
+          status VARCHAR(50) DEFAULT 'published',
+          created_by VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_faqs_status ON faqs(status);
+        CREATE INDEX IF NOT EXISTS idx_faqs_category ON faqs(category_id);
+
+        CREATE TABLE IF NOT EXISTS knowledge_documents (
+          id VARCHAR(255) PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
+          status VARCHAR(50) DEFAULT 'published',
+          created_by VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_docs_status ON knowledge_documents(status);
+
+        CREATE TABLE IF NOT EXISTS knowledge_chunks (
+          id VARCHAR(255) PRIMARY KEY,
+          document_id VARCHAR(255) NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          embedding vector(3072),
+          chunk_index INT NOT NULL DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks(document_id);
+
+        CREATE TABLE IF NOT EXISTS conversations (
+          id VARCHAR(255) PRIMARY KEY,
+          user_id VARCHAR(255),
+          session_id VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conversations_session ON conversations(session_id);
+        CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
+
+        CREATE TABLE IF NOT EXISTS messages (
+          id VARCHAR(255) PRIMARY KEY,
+          conversation_id VARCHAR(255) NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          role VARCHAR(50) NOT NULL,
+          content TEXT NOT NULL,
+          source VARCHAR(50) NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at ASC);
+
+        CREATE TABLE IF NOT EXISTS support_tickets (
+          id VARCHAR(255) PRIMARY KEY,
+          ticket_number SERIAL,
+          user_id VARCHAR(255),
+          session_id VARCHAR(255),
+          conversation_id VARCHAR(255) REFERENCES conversations(id) ON DELETE SET NULL,
+          question TEXT NOT NULL,
+          status VARCHAR(50) DEFAULT 'OPEN',
+          admin_answer TEXT,
+          assigned_to VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          answered_at TIMESTAMP WITH TIME ZONE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+        CREATE INDEX IF NOT EXISTS idx_support_tickets_session ON support_tickets(session_id);
+        CREATE INDEX IF NOT EXISTS idx_support_tickets_created ON support_tickets(created_at DESC);
+
+        ALTER TABLE faqs ADD COLUMN IF NOT EXISTS show_in_browse BOOLEAN DEFAULT true;
+        ALTER TABLE faqs ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS idx_faqs_browse ON faqs(show_in_browse, status);
+
+        -- User and Conversation Auto-Association
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(255);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'user';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_whatsapp VARCHAR(255);
+        CREATE INDEX IF NOT EXISTS idx_conversations_user_email ON conversations(user_email);
+
+        ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);
+        ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS user_whatsapp VARCHAR(255);
+        CREATE INDEX IF NOT EXISTS idx_support_tickets_user ON support_tickets(user_id);
+        CREATE INDEX IF NOT EXISTS idx_support_tickets_user_email ON support_tickets(user_email);
       `);
       schemaInitialized = true;
+      // Asynchronously bootstrap baseline FAQs and RAG knowledge if empty
+      bootstrapAiKnowledgeIfEmpty().catch((err) =>
+        console.warn("Bootstrap AI knowledge notice:", err?.message || err)
+      );
     } catch (err) {
       console.error("Auto schema initialization warning:", err);
     } finally {
@@ -127,6 +250,115 @@ export async function ensureSchema(): Promise<void> {
   })();
 
   return schemaInitPromise;
+}
+
+export async function bootstrapAiKnowledgeIfEmpty(): Promise<void> {
+  if (!hasDatabaseUrl()) return;
+  try {
+    const faqCountRows = await getPool().query("SELECT COUNT(*) as count FROM faqs");
+    const faqCount = parseInt(faqCountRows.rows[0]?.count || "0", 10);
+
+    if (faqCount === 0) {
+      // Create default category
+      const catId = "cat_general";
+      await getPool().query(
+        `INSERT INTO faq_categories (id, name, description) VALUES ($1, $2, $3)
+         ON CONFLICT (name) DO NOTHING`,
+        [catId, "General & Services", "Frequently asked questions about services, pricing, and timelines."]
+      );
+
+      const defaultFaqs = [
+        {
+          id: "faq_services",
+          question: "What services does B2bfiy provide?",
+          answer: "B2bfiy is a full-service creative & digital growth agency. We specialize in four core areas: 1) High-converting web design & development (React, Next.js, WordPress, e-commerce), 2) Professional graphic design & branding, 3) High-retention video editing & motion graphics (Reels, TikTok, YouTube, corporate ads), and 4) Complete social media management & monthly growth retainers.",
+        },
+        {
+          id: "faq_pricing",
+          question: "How much do your services cost?",
+          answer: "We offer both per-project pricing and monthly retainer plans. Website projects typically start at $350 (or 35,000 BDT) for high-converting landing pages. Monthly social media & content packages range from our Starter Package ($299/mo) to full Growth Retainers ($799+/mo). Visit our /packages page for full pricing tiers.",
+        },
+        {
+          id: "faq_delivery",
+          question: "How long does a website project take to deliver?",
+          answer: "Standard business websites and landing pages are delivered within 7 to 14 business days. Custom full-stack web applications and large e-commerce platforms typically take 2 to 4 weeks, including UX wireframing, development, speed optimization, and revisions.",
+        },
+        {
+          id: "faq_revisions",
+          question: "Do you offer revisions if I want changes?",
+          answer: "Yes! Every standard project includes up to 2-3 rounds of revisions within the project scope. Monthly retainer clients enjoy ongoing revisions and dedicated design adjustments as part of their active subscription.",
+        },
+        {
+          id: "faq_refund",
+          question: "What is your refund policy?",
+          answer: "We are committed to quality. If we fail to initiate or meet verified milestone deliverables according to the agreed contract, clients may request a refund within 14 days of project commencement. Milestone-approved work is non-refundable once deployed or signed off.",
+        }
+      ];
+
+      for (const f of defaultFaqs) {
+        await getPool().query(
+          `INSERT INTO faqs (id, category_id, question, answer, status, created_by, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 'published', 'system', NOW(), NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [f.id, catId, f.question, f.answer]
+        );
+      }
+    }
+
+    // Check knowledge documents
+    const docCountRows = await getPool().query("SELECT COUNT(*) as count FROM knowledge_documents");
+    const docCount = parseInt(docCountRows.rows[0]?.count || "0", 10);
+
+    if (docCount === 0) {
+      const defaultDocs = [
+        {
+          id: "doc_agency_overview",
+          title: "B2bfiy Agency Overview, Services, and Workflow",
+          content: `B2bfiy is a premier creative and digital agency based in Dhaka, Bangladesh, serving global and domestic businesses.
+Core Services:
+1. Web Development: Custom responsive web applications, Next.js, React, Node.js, Tailwind CSS, PostgreSQL, headless CMS, and conversion-optimized Shopify/WooCommerce stores.
+2. Graphic Design & Branding: Brand identity, logo design, visual style guides, marketing collateral, pitch decks, and ad creatives.
+3. Video Editing & Motion Graphics: Viral short-form video editing for TikTok, Instagram Reels, and YouTube Shorts; commercial YouTube videos; 2D/3D motion graphics; podcast editing.
+4. Social Media Management: Content planning, copywriting, posting schedule, B2B lead generation, and monthly growth retainers.
+Work Process:
+Step 1: Free Consultation & Strategy Discovery.
+Step 2: Wireframing, Creative Brief & Scripting.
+Step 3: Rapid Iterative Production & Staging.
+Step 4: Review, Client Feedback & Final Delivery with ongoing support.`,
+        },
+        {
+          id: "doc_policies_guarantee",
+          title: "B2bfiy Policies, Guarantees, Revisions, and Support Terms",
+          content: `Communication and Support Hours:
+Our primary office operates Sunday to Thursday from 9:00 AM to 7:00 PM (GMT+6, Dhaka time). Emergency support and retainer client ticketing is monitored 24/7.
+Revisions Policy:
+Every fixed-scope project includes 2 rounds of structural revisions and unlimited minor copy/color tweaks before final signoff. Extra scope additions outside the initial creative brief can be added at standard hourly rates or added to a monthly retainer.
+Payment Terms:
+Fixed-price projects require a 50% deposit upfront and 50% upon milestone completion prior to final asset handover or domain DNS pointing. Monthly retainers are billed at the beginning of each 30-day billing cycle.
+Refund Terms:
+Refund requests must be formally submitted within 14 days of project kickoff if milestones are not delivered per contract. Approved deliverables and third-party fees (such as domain registrations or ad spend) are non-refundable.`,
+        }
+      ];
+
+      for (const doc of defaultDocs) {
+        await getPool().query(
+          `INSERT INTO knowledge_documents (id, title, content, status, created_by, created_at, updated_at)
+           VALUES ($1, $2, $3, 'published', 'system', NOW(), NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [doc.id, doc.title, doc.content]
+        );
+
+        // Index document into vector embeddings
+        try {
+          await indexDocument(doc.id);
+        } catch (indexErr) {
+          console.warn(`Initial vector indexing notice for ${doc.id}:`, indexErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error in bootstrapAiKnowledgeIfEmpty:", err);
+  }
 }
 
 export async function withTransaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
@@ -172,8 +404,12 @@ function requireSecret(): string {
   return process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || "b2bfiy_default_jwt_secret_dev_fallback";
 }
 
-export function signSessionToken(payload: AdminSessionPayload): string {
-  return jwt.sign(payload, requireSecret(), { expiresIn: "30d" });
+export function signSessionToken(payload: AdminSessionPayload | any): string {
+  const cleanPayload: AdminSessionPayload = {
+    userId: payload?.userId || "",
+    email: payload?.email || "",
+  };
+  return jwt.sign(cleanPayload, requireSecret(), { expiresIn: "30d" });
 }
 
 export function verifySessionToken(token: string): AdminSessionPayload | null {
@@ -185,6 +421,24 @@ export function verifySessionToken(token: string): AdminSessionPayload | null {
 }
 
 export function getSessionFromRequest(req: any): AdminSessionPayload | null {
+  // 1. Check Authorization header: Bearer <token>
+  const authHeader = req.headers?.authorization;
+  if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7).trim();
+    if (token) {
+      const payload = verifySessionToken(token);
+      if (payload) return payload;
+    }
+  }
+
+  // 2. Check X-Admin-Token header
+  const customHeader = req.headers?.["x-admin-token"];
+  if (typeof customHeader === "string" && customHeader.trim()) {
+    const payload = verifySessionToken(customHeader.trim());
+    if (payload) return payload;
+  }
+
+  // 3. Check cookies (both req.cookies and raw Cookie header)
   let token: string | undefined = req.cookies?.[SESSION_COOKIE_NAME];
 
   if (!token && typeof req.headers?.cookie === "string") {
@@ -195,22 +449,23 @@ export function getSessionFromRequest(req: any): AdminSessionPayload | null {
     if (match) token = decodeURIComponent(match.split("=").slice(1).join("="));
   }
 
-  if (!token) return null;
-  return verifySessionToken(token);
+  if (token) {
+    const payload = verifySessionToken(token);
+    if (payload) return payload;
+  }
+
+  return null;
 }
 
 export function setSessionCookie(res: any, token: string) {
-  const isProd = process.env.NODE_ENV === "production";
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${
-      isProd ? "; Secure" : ""
-    }`
+    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=None; Secure`
   );
 }
 
 export function clearSessionCookie(res: any) {
-  res.setHeader("Set-Cookie", `${SESSION_COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+  res.setHeader("Set-Cookie", `${SESSION_COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=None; Secure`);
 }
 
 async function bootstrapAdminIfEmpty(): Promise<void> {
@@ -674,6 +929,7 @@ export async function generateSitemapXml(hostUrl: string): Promise<string> {
     { path: "/about", priority: "0.7", changefreq: "monthly", lastmod: today },
     { path: "/free-audit", priority: "0.8", changefreq: "weekly", lastmod: today },
     { path: "/contact", priority: "0.7", changefreq: "monthly", lastmod: today },
+    { path: "/faq", priority: "0.8", changefreq: "weekly", lastmod: today },
     { path: "/privacy-policy", priority: "0.3", changefreq: "yearly", lastmod: "2026-01-01" },
     { path: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-01-01" },
   ];
@@ -875,6 +1131,8 @@ function createListTableHandler(tableName: string) {
           }
         });
 
+        invalidateDatabaseContextCache();
+
         res.status(200).json({ ok: true });
       } catch (err: any) {
         console.error(`Save ${tableName} failed:`, err);
@@ -941,14 +1199,15 @@ export function createApiApp() {
 
   // Site Content
   app.all("/api/content", async (req: Request, res: Response) => {
-    const ROW_ID = "default_site_content";
     if (req.method === "GET") {
       if (!hasDatabaseUrl()) {
         res.status(200).json({ data: null });
         return;
       }
       try {
-        const rows = await query<{ data: any }>("SELECT data FROM site_content WHERE id = $1", [ROW_ID]);
+        const rows = await query<{ data: any }>(
+          "SELECT data FROM site_content WHERE id = 'main_site_content' OR id = 'default_site_content' ORDER BY CASE WHEN id = 'main_site_content' THEN 0 ELSE 1 END LIMIT 1"
+        );
         res.status(200).json({ data: rows[0]?.data ?? null });
       } catch (err: any) {
         res.status(500).json({ error: err?.message || "Failed to load content" });
@@ -964,11 +1223,18 @@ export function createApiApp() {
       }
       try {
         const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+        const serialized = JSON.stringify(body);
         await query(
-          `INSERT INTO site_content (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+          `INSERT INTO site_content (id, data, updated_at) VALUES ('main_site_content', $1::jsonb, NOW())
            ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-          [ROW_ID, JSON.stringify(body)]
+          [serialized]
         );
+        await query(
+          `INSERT INTO site_content (id, data, updated_at) VALUES ('default_site_content', $1::jsonb, NOW())
+           ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+          [serialized]
+        );
+        invalidateDatabaseContextCache();
         res.status(200).json({ ok: true });
       } catch (err: any) {
         res.status(500).json({ error: err?.message || "Failed to save content" });
@@ -1106,7 +1372,7 @@ export function createApiApp() {
 
       const token = signSessionToken(session);
       setSessionCookie(res, token);
-      res.status(200).json({ userId: session.userId, email: session.email });
+      res.status(200).json({ userId: session.userId, email: session.email, token });
     } catch (err: any) {
       res.status(500).json({ error: err?.message || "Login failed." });
     }
@@ -1123,7 +1389,8 @@ export function createApiApp() {
       res.status(200).json({ session: null });
       return;
     }
-    res.status(200).json({ session: { userId: session.userId, email: session.email } });
+    const token = signSessionToken(session);
+    res.status(200).json({ session: { userId: session.userId, email: session.email }, token });
   });
 
   app.post("/api/admin/password", async (req: Request, res: Response) => {
@@ -1229,6 +1496,9 @@ export function createApiApp() {
       }
     }
   });
+
+  // AI Support & RAG Routes
+  registerAiRoutes(app);
 
   return app;
 }

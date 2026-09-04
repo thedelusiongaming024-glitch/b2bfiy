@@ -3,13 +3,13 @@ import {
   Users, Briefcase, Settings, Image as ImageIcon, DollarSign,
   Plus, Edit2, Trash2, Check, AlertCircle, Save, Info, Link, FileText, Search, Eye,
   Lock, Unlock, LogOut, Key, Upload, Library, Phone, MessageCircle, Database, Copy, Type, Star,
-  Globe, Tag, Sparkles, RefreshCw, ExternalLink
+  Globe, Tag, Sparkles, RefreshCw, ExternalLink, Bot, HelpCircle
 } from "lucide-react";
 import { Lead, PortfolioProject, ServicePackage, SiteContent, MediaItem } from "../types";
-import { initialSiteContent } from "../data/initialData";
 import { optimizeImageUrl } from "../lib/imageUtils";
 import SEOPreview from "../components/SEOPreview";
 import AnalyticsPageViewsChart from "../components/AnalyticsPageViewsChart";
+import AdminAiDashboard from "../components/AdminAiDashboard";
 import {
   getDbStatus,
   getNeonSQLScript,
@@ -37,7 +37,7 @@ interface AdminProps {
   onUpdateMedia: (items: MediaItem[]) => Promise<any> | any;
 }
 
-type AdminTab = "leads" | "portfolios" | "packages" | "content" | "media" | "security" | "database";
+type AdminTab = "leads" | "portfolios" | "packages" | "faqs" | "content" | "media" | "security" | "database" | "ai";
 
 const compressImage = (file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.7): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -799,8 +799,10 @@ export default function Admin({
               { id: "leads", label: "Lead Submissions", icon: <Users className="w-4 h-4" />, count: leads.length },
               { id: "portfolios", label: "Portfolio CRUD", icon: <Briefcase className="w-4 h-4" />, count: portfolios.length },
               { id: "packages", label: "Package Manager", icon: <DollarSign className="w-4 h-4" />, count: packages.length },
+              { id: "faqs", label: "FAQ Manager", icon: <HelpCircle className="w-4 h-4" /> },
               { id: "content", label: "Website Content", icon: <Settings className="w-4 h-4" /> },
               { id: "media", label: "Media Library", icon: <ImageIcon className="w-4 h-4" />, count: mediaItems.length },
+              { id: "ai", label: "AI FAQ & Support", icon: <Bot className="w-4 h-4" /> },
               { id: "security", label: "Security Credentials", icon: <Lock className="w-4 h-4" /> },
               { id: "database", label: "Neon Database", icon: <Database className="w-4 h-4" /> }
             ].map((tab) => (
@@ -3166,9 +3168,7 @@ export default function Admin({
                       type="button"
                       onClick={() => {
                         const nextTestimonials = [
-                          ...(editedContent.testimonials && editedContent.testimonials.length > 0
-                            ? editedContent.testimonials
-                            : initialSiteContent.testimonials || []),
+                          ...(editedContent.testimonials || []),
                           {
                             id: "rev-" + Date.now(),
                             name: "New Client Name",
@@ -3191,17 +3191,12 @@ export default function Admin({
 
                   <div className="space-y-4 bg-[#FFF7F5] border border-[#F2E4E2] p-4 rounded-2xl">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {(editedContent.testimonials && editedContent.testimonials.length > 0
-                        ? editedContent.testimonials
-                        : initialSiteContent.testimonials || []
-                      ).map((rev, idx) => (
+                      {(editedContent.testimonials || []).map((rev, idx) => (
                         <div key={rev.id || idx} className="bg-white border border-[#F2E4E2] p-4 rounded-xl space-y-3 relative text-left">
                           <button
                             type="button"
                             onClick={() => {
-                              const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                                ? editedContent.testimonials
-                                : (initialSiteContent.testimonials || []);
+                              const currentList = editedContent.testimonials || [];
                               const nextTestimonials = currentList.filter((_, i) => i !== idx);
                               setEditedContent({ ...editedContent, testimonials: nextTestimonials });
                               triggerSuccess("Review deleted.");
@@ -3221,9 +3216,7 @@ export default function Admin({
                                 type="text"
                                 value={rev.name}
                                 onChange={(e) => {
-                                  const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                                    ? editedContent.testimonials
-                                    : [...(initialSiteContent.testimonials || [])];
+                                  const currentList = editedContent.testimonials || [];
                                   const nextTestimonials = [...currentList];
                                   nextTestimonials[idx] = { ...rev, name: e.target.value };
                                   setEditedContent({ ...editedContent, testimonials: nextTestimonials });
@@ -3237,9 +3230,7 @@ export default function Admin({
                                 type="text"
                                 value={rev.role}
                                 onChange={(e) => {
-                                  const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                                    ? editedContent.testimonials
-                                    : [...(initialSiteContent.testimonials || [])];
+                                  const currentList = editedContent.testimonials || [];
                                   const nextTestimonials = [...currentList];
                                   nextTestimonials[idx] = { ...rev, role: e.target.value };
                                   setEditedContent({ ...editedContent, testimonials: nextTestimonials });
@@ -3255,9 +3246,7 @@ export default function Admin({
                               <select
                                 value={rev.rating || 5}
                                 onChange={(e) => {
-                                  const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                                    ? editedContent.testimonials
-                                    : [...(initialSiteContent.testimonials || [])];
+                                  const currentList = editedContent.testimonials || [];
                                   const nextTestimonials = [...currentList];
                                   nextTestimonials[idx] = { ...rev, rating: parseInt(e.target.value, 10) };
                                   setEditedContent({ ...editedContent, testimonials: nextTestimonials });
@@ -3292,9 +3281,7 @@ export default function Admin({
                                         if (!file) return;
                                         try {
                                           const base64Url = await compressImage(file, 200, 200, 0.8);
-                                          const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                                            ? editedContent.testimonials
-                                            : [...(initialSiteContent.testimonials || [])];
+                                          const currentList = editedContent.testimonials || [];
                                           const nextTestimonials = [...currentList];
                                           nextTestimonials[idx] = { ...rev, avatar: base64Url };
                                           setEditedContent({ ...editedContent, testimonials: nextTestimonials });
@@ -3329,9 +3316,7 @@ export default function Admin({
                               rows={2}
                               value={rev.text}
                               onChange={(e) => {
-                                const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                                  ? editedContent.testimonials
-                                  : [...(initialSiteContent.testimonials || [])];
+                                const currentList = editedContent.testimonials || [];
                                 const nextTestimonials = [...currentList];
                                 nextTestimonials[idx] = { ...rev, text: e.target.value };
                                 setEditedContent({ ...editedContent, testimonials: nextTestimonials });
@@ -3346,9 +3331,7 @@ export default function Admin({
                               rows={2}
                               value={rev.textBn || ""}
                               onChange={(e) => {
-                                const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                                  ? editedContent.testimonials
-                                  : [...(initialSiteContent.testimonials || [])];
+                                const currentList = editedContent.testimonials || [];
                                 const nextTestimonials = [...currentList];
                                 nextTestimonials[idx] = { ...rev, textBn: e.target.value };
                                 setEditedContent({ ...editedContent, testimonials: nextTestimonials });
@@ -3985,6 +3968,12 @@ export default function Admin({
               </div>
             )}
 
+            {/* SUB-PANEL 4: FAQ MANAGER */}
+            {activeTab === "faqs" && <AdminAiDashboard initialSubTab="faqs" />}
+
+            {/* SUB-PANEL 8: AI FAQ, RAG & HUMAN SUPPORT */}
+            {activeTab === "ai" && <AdminAiDashboard initialSubTab="tickets" />}
+
           </div>
 
         </div>
@@ -4071,9 +4060,7 @@ export default function Admin({
                           }
                         } else if (pickingFor.startsWith("testimonial-")) {
                           const idx = parseInt(pickingFor.split("-")[1], 10);
-                          const currentList = editedContent.testimonials && editedContent.testimonials.length > 0
-                            ? editedContent.testimonials
-                            : [...(initialSiteContent.testimonials || [])];
+                          const currentList = editedContent.testimonials || [];
                           const nextTestimonials = [...currentList];
                           if (nextTestimonials[idx]) {
                             nextTestimonials[idx] = { ...nextTestimonials[idx], avatar: item.url };

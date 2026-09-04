@@ -28,6 +28,7 @@ export default function Header({
     { id: "portfolio", label: t("Projects", "প্রজেক্টস") },
     { id: "packages", label: t("Packages", "প্যাকেজ") },
     { id: "about", label: t("About", "সম্পর্কে") },
+    { id: "faq", label: t("AI FAQ", "এআই সহায়তা") },
     { id: "contact", label: t("Contact", "যোগাযোগ") },
   ];
 
