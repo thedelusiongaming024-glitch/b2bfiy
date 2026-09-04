@@ -27,6 +27,7 @@ interface AdminProps {
   leads: Lead[];
   onUpdateLead: (leadId: string, updatedLead: Partial<Lead>) => void;
   onDeleteLead: (leadId: string) => void;
+  onRefreshLeads?: () => Promise<void> | void;
   portfolios: PortfolioProject[];
   onUpdatePortfolios: (projects: PortfolioProject[]) => Promise<any> | any;
   packages: ServicePackage[];
@@ -98,13 +99,14 @@ const compressImage = (file: File, maxWidth = 1000, maxHeight = 1000, quality = 
 };
 
 export default function Admin({
-  leads, onUpdateLead, onDeleteLead,
+  leads, onUpdateLead, onDeleteLead, onRefreshLeads,
   portfolios, onUpdatePortfolios,
   packages, onUpdatePackages,
   siteContent, onUpdateSiteContent,
   mediaItems, onUpdateMedia
 }: AdminProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
+  const [isRefreshingLeads, setIsRefreshingLeads] = useState(false);
   
   // Notification States
   const [successMsg, setSuccessMsg] = useState("");
@@ -418,13 +420,41 @@ export default function Admin({
     triggerSuccess("Lead administrative notes saved.");
   };
 
+  const handleRefreshLeads = async () => {
+    if (!onRefreshLeads) return;
+    setIsRefreshingLeads(true);
+    try {
+      await onRefreshLeads();
+      triggerSuccess("Lead registry refreshed from database.");
+    } catch (e) {
+      console.warn("Failed to refresh leads:", e);
+    } finally {
+      setIsRefreshingLeads(false);
+    }
+  };
+
   // Filtered Leads
-  const filteredLeads = leads.filter((lead) => {
+  const filteredLeads = (leads || []).filter((lead) => {
+    if (!lead) return false;
     const matchesType = leadFilter === "All" || lead.type === leadFilter;
+    const searchLower = (leadSearch || "").toLowerCase().trim();
+    if (!searchLower) return matchesType;
+
+    const fullName = (lead.fullName || "").toLowerCase();
+    const businessName = (lead.businessName || "").toLowerCase();
+    const serviceNeeded = (lead.serviceNeeded || "").toLowerCase();
+    const email = (lead.email || "").toLowerCase();
+    const whatsapp = (lead.whatsappNumber || "").toLowerCase();
+    const message = (lead.message || "").toLowerCase();
+
     const matchesSearch =
-      lead.fullName.toLowerCase().includes(leadSearch.toLowerCase()) ||
-      lead.businessName.toLowerCase().includes(leadSearch.toLowerCase()) ||
-      lead.serviceNeeded.toLowerCase().includes(leadSearch.toLowerCase());
+      fullName.includes(searchLower) ||
+      businessName.includes(searchLower) ||
+      serviceNeeded.includes(searchLower) ||
+      email.includes(searchLower) ||
+      whatsapp.includes(searchLower) ||
+      message.includes(searchLower);
+
     return matchesType && matchesSearch;
   });
 
@@ -842,9 +872,20 @@ export default function Admin({
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#F2E4E2] pb-4">
                   <div>
                     <h2 className="text-lg font-bold text-[#101828]">Lead Submissions</h2>
-                    <p className="text-xs text-[#475467]">Review client inquiries and free digital audit requests.</p>
+                    <p className="text-xs text-[#475467]">Review client inquiries and free digital audit requests from the live database.</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onRefreshLeads && (
+                      <button
+                        onClick={handleRefreshLeads}
+                        disabled={isRefreshingLeads}
+                        className="px-3 py-1.5 text-[10px] font-bold rounded-lg border border-[#F2E4E2] bg-white text-[#101828] hover:bg-[#FFF7F5] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        title="Fetch latest leads from Neon PostgreSQL"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isRefreshingLeads ? "animate-spin text-[#FF2D2D]" : "text-[#475467]"}`} />
+                        <span>{isRefreshingLeads ? "Syncing..." : "Refresh Leads"}</span>
+                      </button>
+                    )}
                     {["All", "contact", "free-audit"].map((t) => (
                       <button
                         key={t}
@@ -861,6 +902,18 @@ export default function Admin({
                   </div>
                 </div>
 
+                {/* Search Bar for Leads */}
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#475467]" />
+                  <input
+                    type="text"
+                    value={leadSearch}
+                    onChange={(e) => setLeadSearch(e.target.value)}
+                    placeholder="Search leads by name, company, email, WhatsApp, or message content..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#FFF7F5] border border-[#F2E4E2] rounded-xl text-xs text-[#101828] placeholder-gray-400 outline-none focus:border-[#FF2D2D]"
+                  />
+                </div>
+
                 {filteredLeads.length === 0 ? (
                   <p className="text-gray-400 text-xs italic py-12 text-center bg-[#FFF7F5] rounded-2xl border border-dashed border-[#F2E4E2]">
                     No matching leads located in the dynamic registry.
@@ -875,22 +928,48 @@ export default function Admin({
                         }`}
                       >
                         <div className="flex flex-wrap justify-between items-start gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-extrabold text-[#101828]">{lead.fullName}</span>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center space-x-2 flex-wrap">
+                              <span className="text-sm font-extrabold text-[#101828]">{lead.fullName || "Anonymous Lead"}</span>
                               {lead.businessName && (
                                 <span className="text-xs font-semibold text-[#475467]">({lead.businessName})</span>
                               )}
+                              {lead.serviceNeeded && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFE8E5] text-[#FF2D2D] border border-[#FF2D2D]/20">
+                                  {lead.serviceNeeded}
+                                </span>
+                              )}
                             </div>
-                            <div className="flex flex-wrap gap-2 text-[10px] font-semibold text-[#475467]">
-                              <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 uppercase font-mono">
-                                {lead.type}
+                            <div className="flex flex-wrap items-center gap-2.5 text-[11px] font-medium text-[#475467]">
+                              <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 uppercase font-mono text-[10px] font-bold">
+                                {lead.type === "contact" ? "Contact Ticket" : "Free Audit"}
                               </span>
-                              <span>Email: {lead.email}</span>
-                              <span>WhatsApp: {lead.whatsappNumber}</span>
+                              {lead.email && (
+                                <a
+                                  href={`mailto:${lead.email}`}
+                                  className="hover:text-[#FF2D2D] underline flex items-center gap-1"
+                                >
+                                  ✉️ {lead.email}
+                                </a>
+                              )}
+                              {lead.whatsappNumber && (
+                                <a
+                                  href={`https://wa.me/${lead.whatsappNumber.replace(/[^0-9]/g, "")}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-emerald-700 hover:text-emerald-800 font-bold underline flex items-center gap-1"
+                                >
+                                  💬 {lead.whatsappNumber}
+                                </a>
+                              )}
                               {lead.websiteUrl && (
-                                <a href={lead.websiteUrl} target="_blank" rel="noreferrer" className="text-[#FF2D2D] underline">
-                                  Url: {lead.websiteUrl}
+                                <a
+                                  href={lead.websiteUrl.startsWith("http") ? lead.websiteUrl : `https://${lead.websiteUrl}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[#FF2D2D] underline flex items-center gap-1"
+                                >
+                                  🌐 {lead.websiteUrl}
                                 </a>
                               )}
                             </div>
@@ -898,12 +977,18 @@ export default function Admin({
 
                           <div className="space-y-1.5 text-right sm:text-right">
                             <span className="text-[10px] text-[#475467] font-mono block">
-                              {new Date(lead.submittedAt).toLocaleString()}
+                              {(() => {
+                                try {
+                                  return new Date(lead.submittedAt).toLocaleString();
+                                } catch {
+                                  return lead.submittedAt || "Recent";
+                                }
+                              })()}
                             </span>
                             
                             {/* Status Change selectors */}
                             <select
-                              value={lead.status}
+                              value={lead.status || "New"}
                               onChange={(e) => handleStatusChange(lead.id, e.target.value as Lead["status"])}
                               className="text-[10px] font-bold border border-[#F2E4E2] bg-white rounded p-1"
                             >

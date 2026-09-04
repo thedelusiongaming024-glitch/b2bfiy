@@ -14,13 +14,15 @@ import {
 // Neon database integration
 import {
   fetchAllDataFromDb,
+  fetchLeadsFromDb,
   saveSiteContentToDb,
   syncPortfoliosToDb,
   syncPackagesToDb,
   syncMediaItemsToDb,
   saveLeadToDb,
   deleteLeadFromDb,
-  getDbStatus
+  getDbStatus,
+  onAdminAuthStateChange
 } from "./lib/db";
 
 // Tracking
@@ -339,6 +341,25 @@ export default function App() {
     };
 
     syncWithDb();
+
+    // Auto-refresh leads whenever admin auth state changes
+    const unsubAuth = onAdminAuthStateChange(async (isAuth) => {
+      if (isAuth) {
+        try {
+          const freshLeads = await fetchLeadsFromDb();
+          if (freshLeads && freshLeads.length > 0) {
+            setLeads(freshLeads);
+            safeSetLocalStorage("b2bfiy_leads", JSON.stringify(freshLeads));
+          }
+        } catch (e) {
+          console.warn("Failed to auto-fetch leads on admin login:", e);
+        }
+      }
+    });
+
+    return () => {
+      unsubAuth();
+    };
   }, []);
 
   // Update page title, favicon, SEO meta tags, Google Verification, Schema.org JSON-LD, and Meta Pixel dynamically when siteContent changes
@@ -754,6 +775,19 @@ export default function App() {
     }
   };
 
+  const handleRefreshLeads = async () => {
+    try {
+      const freshLeads = await fetchLeadsFromDb();
+      if (freshLeads) {
+        setLeads(freshLeads);
+        safeSetLocalStorage("b2bfiy_leads", JSON.stringify(freshLeads));
+      }
+    } catch (e) {
+      console.warn("Failed to manually refresh leads from database:", e);
+      throw e;
+    }
+  };
+
   // 3. Dynamic Page Selector Renderer
   const renderPage = () => {
     switch (currentRoute) {
@@ -835,6 +869,7 @@ export default function App() {
             leads={leads}
             onUpdateLead={handleUpdateLead}
             onDeleteLead={handleDeleteLead}
+            onRefreshLeads={handleRefreshLeads}
             portfolios={portfolios}
             onUpdatePortfolios={handleUpdatePortfolios}
             packages={packages}

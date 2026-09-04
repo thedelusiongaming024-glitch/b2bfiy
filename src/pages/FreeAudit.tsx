@@ -29,7 +29,7 @@ export default function FreeAudit({ setRoute, siteContent, onLeadSubmit }: FreeA
     if (errorMsg) setErrorMsg("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
 
@@ -52,20 +52,19 @@ export default function FreeAudit({ setRoute, siteContent, onLeadSubmit }: FreeA
     const newLead = {
       id: "audit-" + Date.now(),
       type: "free-audit",
-      fullName: formData.name,
-      businessName: formData.businessName,
-      email: formData.email,
-      whatsappNumber: formData.whatsapp,
-      websiteUrl: formData.websiteUrl,
+      fullName: formData.name.trim(),
+      businessName: formData.businessName.trim() || undefined,
+      email: formData.email.trim(),
+      whatsappNumber: formData.whatsapp.trim(),
+      websiteUrl: formData.websiteUrl.trim() || undefined,
       serviceNeeded: formData.service,
-      message: formData.message || "Requested Free Digital Audit & Consultation",
+      message: formData.message.trim() || "Requested Free Digital Audit & Consultation",
       submittedAt: new Date().toISOString(),
       status: "New",
     };
 
-    setTimeout(() => {
-      onLeadSubmit(newLead);
-      setLoading(false);
+    try {
+      await onLeadSubmit(newLead);
       setSubmitted(true);
       setFormData({
         name: "",
@@ -76,7 +75,12 @@ export default function FreeAudit({ setRoute, siteContent, onLeadSubmit }: FreeA
         service: "Complete Digital Solution",
         message: "",
       });
-    }, 900);
+    } catch (err: any) {
+      console.error("Failed to submit audit lead:", err);
+      setErrorMsg(t("Failed to save your audit request. Please try again or reach out on WhatsApp.", "অডিট রিকুয়েস্ট সংরক্ষণ করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন বা হোয়াটসঅ্যাপে যোগাযোগ করুন।"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

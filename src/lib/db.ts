@@ -310,6 +310,16 @@ export async function saveLeadToDb(lead: Lead): Promise<boolean> {
   }
 }
 
+export async function fetchLeadsFromDb(): Promise<Lead[]> {
+  try {
+    const res = await jsonFetch<{ data: Lead[] }>("/api/leads");
+    return Array.isArray(res?.data) ? res.data : [];
+  } catch (e) {
+    console.warn("Could not fetch leads from database:", e);
+    return [];
+  }
+}
+
 export async function deleteLeadFromDb(leadId: string): Promise<boolean> {
   try {
     await jsonFetch(`/api/leads?id=${encodeURIComponent(leadId)}`, { method: "DELETE" });

@@ -40,7 +40,7 @@ export default function Contact({ setRoute, siteContent, onLeadSubmit, prefilled
     if (errorMsg) setErrorMsg("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
 
@@ -53,19 +53,18 @@ export default function Contact({ setRoute, siteContent, onLeadSubmit, prefilled
     const newLead = {
       id: "contact-" + Date.now(),
       type: "contact",
-      fullName: formData.name,
-      businessName: formData.businessName,
-      email: formData.email,
-      whatsappNumber: formData.whatsapp,
+      fullName: formData.name.trim(),
+      businessName: formData.businessName.trim() || undefined,
+      email: formData.email.trim(),
+      whatsappNumber: formData.whatsapp.trim(),
       serviceNeeded: selectedService,
-      message: formData.message,
+      message: formData.message.trim() || `Inquiry regarding ${selectedService}`,
       submittedAt: new Date().toISOString(),
       status: "New",
     };
 
-    setTimeout(() => {
-      onLeadSubmit(newLead);
-      setLoading(false);
+    try {
+      await onLeadSubmit(newLead);
       setSubmitted(true);
       setFormData({
         name: "",
@@ -74,7 +73,12 @@ export default function Contact({ setRoute, siteContent, onLeadSubmit, prefilled
         whatsapp: "",
         message: "",
       });
-    }, 800);
+    } catch (err: any) {
+      console.error("Failed to submit contact lead:", err);
+      setErrorMsg(t("Failed to save your inquiry. Please try again or reach out directly on WhatsApp.", "বার্তা সংরক্ষণ করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন বা হোয়াটসঅ্যাপে যোগাযোগ করুন।"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -259,6 +263,25 @@ export default function Contact({ setRoute, siteContent, onLeadSubmit, prefilled
                     />
                   </div>
 
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-[#101828] dark:text-gray-200 uppercase">{t("Service Needed", "প্রয়োজনীয় সেবা")}</label>
+                  <select
+                    value={selectedService}
+                    onChange={(e) => setSelectedService(e.target.value)}
+                    className="w-full px-4 py-3 border border-[#F2E4E2] dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#FF2D2D] outline-none bg-white dark:bg-gray-900 text-xs text-[#101828] dark:text-white font-medium"
+                  >
+                    <option value="General Inquiry">{t("General Inquiry / Consultation", "সাধারণ অনুসন্ধান / পরামর্শ")}</option>
+                    <option value="Website Development">{t("High-Converting Web Development & UI/UX", "ওয়েবসাইট ডেভেলপমেন্ট ও ইউআই/ইউএক্স")}</option>
+                    <option value="Brand Identity & Graphic Design">{t("Brand Identity & Graphic Design", "ব্র্যান্ড আইডেন্টিটি ও গ্রাফিক ডিজাইন")}</option>
+                    <option value="Cinematic & Viral Video Editing">{t("Cinematic & Viral Video Editing", "সিনেমেটিক ভিডিও এডিটিং ও রিলস")}</option>
+                    <option value="Social Media Management & Growth">{t("Social Media Management Retainer", "সোশ্যাল মিডিয়া ম্যানেজমেন্ট ও গ্রোথ")}</option>
+                    <option value="eCommerce Solution">{t("Full eCommerce Solution", "সম্পূর্ণ ই-কমার্স সল্যুশন")}</option>
+                    {prefilledService && !["General Inquiry", "Website Development", "Brand Identity & Graphic Design", "Cinematic & Viral Video Editing", "Social Media Management & Growth", "eCommerce Solution"].includes(prefilledService) && (
+                      <option value={prefilledService}>{prefilledService}</option>
+                    )}
+                  </select>
                 </div>
 
                 <div className="space-y-1">

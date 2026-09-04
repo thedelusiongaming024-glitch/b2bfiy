@@ -361,6 +361,51 @@ function runMemoryQuery<T = any>(text: string, params: any[] = []): T[] {
     return admin ? ([admin] as unknown as T[]) : [];
   }
 
+  // 10. Leads
+  if (normalized.includes("FROM leads")) {
+    const list = [...(memoryDb.leads || [])].sort((a: any, b: any) => {
+      const ta = new Date(a.submitted_at || a.submittedAt || a.created_at || 0).getTime();
+      const tb = new Date(b.submitted_at || b.submittedAt || b.created_at || 0).getTime();
+      return tb - ta;
+    });
+    return list as unknown as T[];
+  }
+
+  if (normalized.startsWith("INSERT INTO leads")) {
+    const id = params[0] || `lead_${Date.now()}`;
+    const leadObj: any = {
+      id,
+      type: params[1] || "contact",
+      full_name: params[2] || "Anonymous",
+      business_name: params[3] || null,
+      email: params[4] || null,
+      whatsapp_number: params[5] || null,
+      website_url: params[6] || null,
+      service_needed: params[7] || null,
+      message: params[8] || null,
+      submitted_at: params[9] || new Date().toISOString(),
+      status: params[10] || "New",
+      notes: params[11] || null,
+      raw_data: params[12] ? (typeof params[12] === "string" ? JSON.parse(params[12]) : params[12]) : null,
+      created_at: new Date().toISOString(),
+    };
+    const idx = memoryDb.leads.findIndex((l: any) => l.id === id);
+    if (idx >= 0) {
+      memoryDb.leads[idx] = { ...memoryDb.leads[idx], ...leadObj };
+    } else {
+      memoryDb.leads.unshift(leadObj);
+    }
+    return [leadObj] as unknown as T[];
+  }
+
+  if (normalized.startsWith("DELETE FROM leads")) {
+    const leadId = params[0];
+    if (leadId) {
+      memoryDb.leads = memoryDb.leads.filter((l: any) => l.id !== leadId);
+    }
+    return [] as T[];
+  }
+
   return [] as T[];
 }
 
@@ -1713,29 +1758,26 @@ export function createApiApp() {
         res.status(401).json({ error: "Not signed in." });
         return;
       }
-      if (!hasDatabaseUrl()) {
-        res.status(200).json({ data: [] });
-        return;
-      }
       try {
         const rows = await query("SELECT * FROM leads ORDER BY submitted_at DESC");
         res.status(200).json({
-          data: rows.map((row: any) => ({
+          data: (rows || []).map((row: any) => ({
             id: row.id,
-            type: row.type,
-            fullName: row.full_name,
-            businessName: row.business_name || "",
+            type: row.type || "contact",
+            fullName: row.full_name || row.fullName || "",
+            businessName: row.business_name || row.businessName || "",
             email: row.email || "",
-            whatsappNumber: row.whatsapp_number || "",
-            websiteUrl: row.website_url || "",
-            serviceNeeded: row.service_needed || "",
+            whatsappNumber: row.whatsapp_number || row.whatsappNumber || "",
+            websiteUrl: row.website_url || row.websiteUrl || "",
+            serviceNeeded: row.service_needed || row.serviceNeeded || "",
             message: row.message || "",
-            submittedAt: row.submitted_at,
-            status: row.status,
+            submittedAt: row.submitted_at || row.submittedAt || new Date().toISOString(),
+            status: row.status || "New",
             notes: row.notes || "",
           })),
         });
       } catch (err: any) {
+        console.error("Error loading leads:", err);
         res.status(500).json({ error: err?.message || "Failed to load leads" });
       }
       return;
@@ -1743,28 +1785,39 @@ export function createApiApp() {
 
     if (req.method === "POST") {
       const session = getSessionFromRequest(req);
-      if (!hasDatabaseUrl()) {
-        res.status(200).json({ ok: true });
-        return;
-      }
       try {
         const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
         const lead = body || {};
+        const id = lead.id || `lead-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const type = lead.type || "contact";
+        const fullName = (lead.fullName || lead.full_name || lead.name || "Anonymous").trim();
+        const businessName = (lead.businessName || lead.business_name || null);
+        const email = (lead.email || null);
+        const whatsappNumber = (lead.whatsappNumber || lead.whatsapp_number || lead.whatsapp || lead.phone || null);
+        const websiteUrl = (lead.websiteUrl || lead.website_url || null);
+        const serviceNeeded = (lead.serviceNeeded || lead.service_needed || lead.service || "General Inquiry");
+        const message = (lead.message || null);
+        const submittedAt = lead.submittedAt || lead.submitted_at || new Date().toISOString();
+        const status = lead.status || "New";
+        const notes = lead.notes || null;
+        const rawData = JSON.stringify(lead);
+
         const values = [
-          lead.id,
-          lead.type,
-          lead.fullName,
-          lead.businessName || null,
-          lead.email || null,
-          lead.whatsappNumber || null,
-          lead.websiteUrl || null,
-          lead.serviceNeeded || null,
-          lead.message || null,
-          lead.submittedAt,
-          lead.status,
-          lead.notes || null,
-          JSON.stringify(lead),
+          id,
+          type,
+          fullName,
+          businessName,
+          email,
+          whatsappNumber,
+          websiteUrl,
+          serviceNeeded,
+          message,
+          submittedAt,
+          status,
+          notes,
+          rawData,
         ];
+
         const conflictClause = session
           ? `ON CONFLICT (id) DO UPDATE SET
                type = EXCLUDED.type, full_name = EXCLUDED.full_name, business_name = EXCLUDED.business_name,
@@ -1779,8 +1832,9 @@ export function createApiApp() {
            ${conflictClause}`,
           values
         );
-        res.status(200).json({ ok: true });
+        res.status(200).json({ ok: true, id });
       } catch (err: any) {
+        console.error("Error saving lead in /api/leads:", err);
         res.status(500).json({ error: err?.message || "Failed to save lead" });
       }
       return;
@@ -1801,6 +1855,7 @@ export function createApiApp() {
         await query("DELETE FROM leads WHERE id = $1", [id]);
         res.status(200).json({ ok: true });
       } catch (err: any) {
+        console.error("Error deleting lead:", err);
         res.status(500).json({ error: err?.message || "Failed to delete lead" });
       }
       return;
