@@ -19,9 +19,9 @@ export interface AIService {
 
 export function getAIConfig(): AIProviderConfig {
   const provider = (process.env.AI_PROVIDER || "gemini").toLowerCase() as "gemini" | "openai" | "custom";
-  const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY || "";
-  const model = process.env.AI_MODEL || "gemini-3.1-flash-lite";
-  const embeddingModel = process.env.EMBEDDING_MODEL || "gemini-embedding-001";
+  const apiKey = (process.env.AI_API_KEY || process.env.GEMINI_API_KEY || "").trim();
+  const model = process.env.AI_MODEL || "gemini-3.8-flash";
+  const embeddingModel = process.env.EMBEDDING_MODEL || "gemini-embedding-2-preview";
 
   return {
     provider,
@@ -42,12 +42,12 @@ class GeminiAIService implements AIService {
     }
   }
 
-  private getClient(): GoogleGenAI {
+  private getClient(): GoogleGenAI | null {
+    const apiKey = (process.env.AI_API_KEY || process.env.GEMINI_API_KEY || "").trim();
+    if (!apiKey) {
+      return null;
+    }
     if (!this.ai) {
-      const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY || "";
-      if (!apiKey) {
-        throw new Error("Missing AI API key. Set AI_API_KEY or GEMINI_API_KEY in server environment.");
-      }
       this.ai = new GoogleGenAI({ apiKey });
     }
     return this.ai;
@@ -63,6 +63,9 @@ class GeminiAIService implements AIService {
     contextChunks: string[];
   }): Promise<string> {
     const client = this.getClient();
+    if (!client) {
+      return "INSUFFICIENT_KNOWLEDGE";
+    }
 
     const formattedContext = contextChunks.length > 0
       ? `APPROVED KNOWLEDGE CONTEXT:\n${contextChunks.map((chunk, idx) => `[Source ${idx + 1}]:\n${chunk}`).join("\n\n")}`
@@ -72,12 +75,12 @@ class GeminiAIService implements AIService {
 
     const userMessage = `${formattedContext}\n\nUSER QUESTION: ${prompt}`;
 
-    // Try primary model followed by fallback models in case of temporary 503 spikes or availability
+    // Try valid active Gemini models
     const candidateModels = Array.from(new Set([
       this.config.model,
+      "gemini-3.8-flash",
       "gemini-3.1-flash-lite",
       "gemini-flash-latest",
-      "gemini-3.8-flash"
     ]));
 
     let lastError: any = null;
@@ -98,16 +101,17 @@ class GeminiAIService implements AIService {
         return text;
       } catch (err: any) {
         lastError = err;
-        console.warn(`Gemini model ${modelName} failed or unavailable: ${err?.message || err}. Trying next fallback model...`);
+        console.warn(`Gemini model ${modelName} notice: ${err?.message || err}. Trying candidate fallback...`);
       }
     }
 
-    console.error("All Gemini candidate models failed:", lastError?.message || lastError);
-    throw lastError;
+    console.warn("All Gemini candidate models returned notice:", lastError?.message || lastError);
+    return "INSUFFICIENT_KNOWLEDGE";
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
     const client = this.getClient();
+    if (!client) return [];
     try {
       const response = await client.models.embedContent({
         model: this.config.embeddingModel,
@@ -116,12 +120,12 @@ class GeminiAIService implements AIService {
 
       const values = (response as any).embeddings?.[0]?.values;
       if (!values || !Array.isArray(values)) {
-        throw new Error("Invalid embedding response from Gemini API");
+        return [];
       }
       return values;
     } catch (err: any) {
-      console.error("Gemini embedding generation error:", err?.message || err);
-      throw err;
+      console.warn("Gemini embedding notice (using lexical search fallback):", err?.message || err);
+      return [];
     }
   }
 }

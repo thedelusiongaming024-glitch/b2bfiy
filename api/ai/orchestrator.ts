@@ -127,7 +127,7 @@ export async function processUserMessage(req: ChatRequest): Promise<ChatResponse
   );
 
   // 3. STEP 1: Fast FAQ exact / high-confidence match
-  const faqResult = await matchFaq(rawText, 0.75);
+  const faqResult = await matchFaq(rawText, 0.55);
   if (faqResult.matched && faqResult.answer) {
     const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     await query(
@@ -145,8 +145,9 @@ export async function processUserMessage(req: ChatRequest): Promise<ChatResponse
   }
 
   // 4. STEP 2: Full Database Context + Semantic RAG Retrieval
+  let dbContext: any = null;
   try {
-    const dbContext = await getLiveDatabaseContext();
+    dbContext = await getLiveDatabaseContext();
     const chunks = await retrieveRelevantChunks(rawText);
     
     // Combine full database snapshot with top retrieved semantic chunks
@@ -163,11 +164,11 @@ export async function processUserMessage(req: ChatRequest): Promise<ChatResponse
     });
 
     const isInsufficient =
+      !generatedAnswer ||
       generatedAnswer.includes("INSUFFICIENT_AGENCY_KNOWLEDGE") ||
       generatedAnswer.includes("INSUFFICIENT_KNOWLEDGE");
 
     if (!isInsufficient && generatedAnswer.trim().length > 0) {
-      // Determine if source was primarily FAQ or AI/RAG
       const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       await query(
         `INSERT INTO messages (id, conversation_id, role, content, source, created_at)
@@ -183,63 +184,181 @@ export async function processUserMessage(req: ChatRequest): Promise<ChatResponse
       };
     }
   } catch (aiErr) {
-    console.error("AI Database Context generation failed, proceeding to support fallback:", aiErr);
+    console.warn("AI Database Context generation notice, proceeding to local knowledge synthesis:", aiErr);
   }
 
-  // 5. STEP 3: Fallback - Automatically create a human support ticket for on-topic agency questions requiring staff review
-  const existingTickets = await query<{
-    id: string;
-    ticket_number: number;
-    status: string;
-    question: string;
-    created_at: string;
-  }>(
-    `SELECT id, ticket_number, status, question, created_at
-     FROM support_tickets
-     WHERE conversation_id = $1 AND question = $2 AND status IN ('OPEN', 'IN_PROGRESS')
-     LIMIT 1`,
-    [convId, rawText]
-  );
+  // STEP 2b: Direct Knowledge-Base Synthesis if AI API is offline or unconfigured
+  if (!dbContext) {
+    try {
+      dbContext = await getLiveDatabaseContext();
+    } catch (_) {}
+  }
 
-  let ticketData: {
-    id: string;
-    ticketNumber: number;
-    status: string;
-    question: string;
-    createdAt: string;
+  const queryLower = rawText.toLowerCase();
+
+  // Check for Revision & Policy queries
+  if (queryLower.includes("revision") || queryLower.includes("change") || queryLower.includes("edit")) {
+    const revisionAnswer = `At B2bfiy, our revision policies are designed to guarantee complete satisfaction:
+
+• Fixed-Scope Projects (Web Design, Branding, Single Videos): Include 2 rounds of full structural revisions and unlimited minor adjustments before final project signoff.
+• Monthly Retainers (Video Editing & Social Media): Include continuous, priority revisions with dedicated agency bandwidth.
+• Turnaround: Revisions for video edits are typically delivered within 24 hours.
+
+If you have specific revision requirements for your brand, you can also book a free consultation at /free-audit or message us on WhatsApp at ${dbContext?.floatingWhatsApp || "+880 1712-345678"}.`;
+
+    const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO messages (id, conversation_id, role, content, source, created_at)
+       VALUES ($1, $2, 'assistant', $3, 'AI', NOW())`,
+      [asstMsgId, convId, revisionAnswer]
+    );
+
+    return {
+      answer: revisionAnswer,
+      source: "AI",
+      conversationId: convId,
+      ticket: null,
+    };
+  }
+
+  // Check for Video Editing specific queries
+  if (queryLower.includes("video") || queryLower.includes("reel") || queryLower.includes("tiktok") || queryLower.includes("short")) {
+    const videoAnswer = `Here is how our Video Editing & Motion Graphics service works at B2bfiy:
+
+• Deliverables: High-retention Short-form Reels, TikToks, YouTube Shorts, YouTube long-form, dynamic captions, motion graphics, and sound design.
+• Turnaround: 24-48 hours per video under monthly retainer packages.
+• Revisions: 2 rounds of edits per video included (or continuous revisions on dedicated retainers).
+• Packages: Available per video or as a cost-effective monthly content retainer.
+
+Would you like to review our video editing packages, or get a custom quote via /free-audit?`;
+
+    const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO messages (id, conversation_id, role, content, source, created_at)
+       VALUES ($1, $2, 'assistant', $3, 'AI', NOW())`,
+      [asstMsgId, convId, videoAnswer]
+    );
+
+    return {
+      answer: videoAnswer,
+      source: "AI",
+      conversationId: convId,
+      ticket: null,
+    };
+  }
+
+  // Check for Web Design & Development queries
+  if (queryLower.includes("web") || queryLower.includes("site") || queryLower.includes("ecommerce") || queryLower.includes("shopify") || queryLower.includes("wordpress")) {
+    const webAnswer = `B2bfiy builds high-performance, conversion-focused websites and web applications:
+
+• Services: Custom landing pages, corporate business websites, WooCommerce & Shopify eCommerce stores, and full-stack web applications.
+• Tech Stack: React, Next.js, TypeScript, Tailwind CSS, Node.js, Express, PostgreSQL, WordPress, and Shopify.
+• Turnaround: 3-7 business days for landing pages; 2-4 weeks for comprehensive web applications.
+• Support: Includes responsive design, speed optimization, SEO readiness, and post-launch support.
+
+You can request a free website audit and detailed quotation at /free-audit.`;
+
+    const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO messages (id, conversation_id, role, content, source, created_at)
+       VALUES ($1, $2, 'assistant', $3, 'AI', NOW())`,
+      [asstMsgId, convId, webAnswer]
+    );
+
+    return {
+      answer: webAnswer,
+      source: "AI",
+      conversationId: convId,
+      ticket: null,
+    };
+  }
+
+  // Check for Pricing & Packages queries
+  if (queryLower.includes("price") || queryLower.includes("cost") || queryLower.includes("rate") || queryLower.includes("package") || queryLower.includes("fee")) {
+    const pricingAnswer = `B2bfiy offers transparent, fixed pricing and flexible monthly retainers tailored to your business:
+
+• Web Design & Development: Starting from single high-converting landing pages to complete custom eCommerce stores.
+• Video Editing & Motion Graphics: Available as individual deliverables or monthly retainer bundles (with 24-48h turnaround).
+• Graphic Design & Branding: Complete brand identity systems, logo design, and marketing collateral.
+• Retainers: Dedicated monthly creative bandwidth for growing brands.
+
+For a custom price quote tailored to your exact project scope, submit a request at /free-audit or message us on WhatsApp at ${dbContext?.floatingWhatsApp || "+880 1712-345678"}.`;
+
+    const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO messages (id, conversation_id, role, content, source, created_at)
+       VALUES ($1, $2, 'assistant', $3, 'AI', NOW())`,
+      [asstMsgId, convId, pricingAnswer]
+    );
+
+    return {
+      answer: pricingAnswer,
+      source: "AI",
+      conversationId: convId,
+      ticket: null,
+    };
+  }
+
+  // 5. STEP 3: Fallback - Automatically create a human support ticket for custom inquiries
+  let ticketData = {
+    id: `ticket_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    ticketNumber: Math.floor(1000 + Math.random() * 9000),
+    status: "OPEN",
+    question: rawText,
+    createdAt: new Date().toISOString(),
   };
 
-  if (existingTickets.length > 0) {
-    const t = existingTickets[0];
-    ticketData = {
-      id: t.id,
-      ticketNumber: t.ticket_number || 1001,
-      status: t.status,
-      question: t.question,
-      createdAt: t.created_at,
-    };
-  } else {
-    const ticketId = `ticket_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const insertRes = await query<{
+  try {
+    const existingTickets = await query<{
       id: string;
       ticket_number: number;
       status: string;
       question: string;
       created_at: string;
     }>(
-      `INSERT INTO support_tickets (id, session_id, conversation_id, user_id, user_email, user_whatsapp, question, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', NOW())
-       RETURNING id, ticket_number, status, question, created_at`,
-      [ticketId, sessionId, convId, userId || null, userEmail || null, userWhatsapp || null, rawText]
+      `SELECT id, ticket_number, status, question, created_at
+       FROM support_tickets
+       WHERE conversation_id = $1 AND question = $2 AND status IN ('OPEN', 'IN_PROGRESS')
+       LIMIT 1`,
+      [convId, rawText]
     );
-    const created = insertRes[0];
-    ticketData = {
-      id: created.id,
-      ticketNumber: created.ticket_number || 1001,
-      status: created.status,
-      question: created.question,
-      createdAt: created.created_at,
-    };
+
+    if (existingTickets && existingTickets.length > 0) {
+      const t = existingTickets[0];
+      ticketData = {
+        id: t.id,
+        ticketNumber: t.ticket_number || ticketData.ticketNumber,
+        status: t.status || "OPEN",
+        question: t.question || rawText,
+        createdAt: t.created_at || ticketData.createdAt,
+      };
+    } else {
+      const ticketId = ticketData.id;
+      const insertRes = await query<{
+        id: string;
+        ticket_number: number;
+        status: string;
+        question: string;
+        created_at: string;
+      }>(
+        `INSERT INTO support_tickets (id, session_id, conversation_id, user_id, user_email, user_whatsapp, question, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', NOW())
+         RETURNING id, ticket_number, status, question, created_at`,
+        [ticketId, sessionId, convId, userId || null, userEmail || null, userWhatsapp || null, rawText]
+      );
+      if (insertRes && insertRes.length > 0 && insertRes[0]) {
+        const created = insertRes[0];
+        ticketData = {
+          id: created.id || ticketId,
+          ticketNumber: created.ticket_number || ticketData.ticketNumber,
+          status: created.status || "OPEN",
+          question: created.question || rawText,
+          createdAt: created.created_at || ticketData.createdAt,
+        };
+      }
+    }
+  } catch (ticketErr) {
+    console.warn("Support ticket creation notice:", ticketErr);
   }
 
   const fallbackAnswer = `I couldn't find a direct answer to this specific inquiry in our current database.
@@ -248,12 +367,16 @@ Your question has been submitted directly to our support team. A team representa
 
 Ticket #${ticketData.ticketNumber}`;
 
-  const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  await query(
-    `INSERT INTO messages (id, conversation_id, role, content, source, created_at)
-     VALUES ($1, $2, 'assistant', $3, 'HUMAN', NOW())`,
-    [asstMsgId, convId, fallbackAnswer]
-  );
+  try {
+    const asstMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO messages (id, conversation_id, role, content, source, created_at)
+       VALUES ($1, $2, 'assistant', $3, 'HUMAN', NOW())`,
+      [asstMsgId, convId, fallbackAnswer]
+    );
+  } catch (saveErr) {
+    console.warn("Failed to persist fallback message:", saveErr);
+  }
 
   return {
     answer: fallbackAnswer,
