@@ -493,8 +493,8 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
           </h1>
           <p className="text-[#475467] dark:text-gray-300 text-sm sm:text-base max-w-2xl mx-auto">
             {t(
-              "Our AI Support Assistant answers instantly from verified agency knowledge. Enter your email & WhatsApp to instantly save all your conversations and human support tickets in your account in Neon database.",
-              "আমাদের এআই অ্যাসিস্ট্যান্ট ভেরিফাইড তথ্য থেকে তাৎক্ষণিক উত্তর দেবে। আপনার ইমেইল ও হোয়াটসঅ্যাপ দিয়ে স্বয়ংক্রিয় একাউন্টে সব কথোপকথন ও টিকেট নিয়ন ডাটাবেজে সংরক্ষিত থাকবে।"
+              "Our AI Support Assistant answers instantly from verified agency knowledge. Enter your email & WhatsApp to instantly have our human support system !",
+              "আমাদের এআই অ্যাসিস্ট্যান্ট ভেরিফাইড তথ্য থেকে তাৎক্ষণিক উত্তর দেবে।"
             )}
           </p>
 
@@ -552,7 +552,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                 }`}
               >
                 <HelpCircle className="w-4 h-4" />
-                <span>{t("Browse Approved FAQs", "অনুমোদিত প্রশ্নোত্তর")}</span>
+                <span>{t("Our Custom FAQs", "অনুমোদিত প্রশ্নোত্তর")}</span>
               </button>
 
               <button
@@ -568,7 +568,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                 }`}
               >
                 <LifeBuoy className="w-4 h-4" />
-                <span>{t("My Tickets", "আমার টিকেটসমূহ")}</span>
+                <span>{t("Human Support", "আমার টিকেটসমূহ")}</span>
                 {myTickets.length > 0 && (
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
@@ -605,8 +605,8 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                   </div>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400">
                     {currentUser
-                      ? `${t("Synced to account in Neonbase", "নিয়নবেজ একাউন্টে সংরক্ষিত")}: ${currentUser.email}`
-                      : t("Grounded in official agency knowledge • Instant Account Link")}
+                      ? `${t("Synced to your account", "একাউন্টে সংরক্ষিত")}: ${currentUser.email}`
+                      : t("Grounded by our official agency knowledge")}
                   </p>
                 </div>
               </div>
@@ -676,7 +676,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                           {msg.source === "HUMAN" && (
                             <span className="inline-flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-900">
                               <Clock className="w-3 h-3" />
-                              {t("Human Support Ticket Filed", "সাপোর্ট টিকেট গৃহীত")}
+                              {t("Human Support Request Filed", "সাপোর্ট টিকেট গৃহীত")}
                             </span>
                           )}
                           <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
@@ -797,7 +797,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                 <span>
                   {currentUser ? (
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ {t("Stored in your account in Neon database", "নিয়ন ডাটাবেজে আপনার একাউন্টে সংরক্ষিত")}
+                      ✓ {t("Stored in your account", " আপনার একাউন্টে সংরক্ষিত")}
                     </span>
                   ) : (
                     <span>{t("First question prompts instant account setup")}</span>
@@ -917,7 +917,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-bold text-[#101828] dark:text-white">
-                    {t("Your Support Tickets", "আপনার সাপোর্ট টিকেটসমূহ")}
+                    {t("Your Support Requests", "আপনার সাপোর্ট টিকেটসমূহ")}
                   </h2>
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-[#FF2D2D]">
                     {myTickets.length}
@@ -925,14 +925,14 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                   {tokenRefreshedNotice && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 animate-in fade-in flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" />
-                      <span>{t("Token & tickets refreshed", "টোকেন ও টিকেট আপডেট হয়েছে")}</span>
+                      <span>{t("Support & Request refreshed", "টোকেন ও টিকেট আপডেট হয়েছে")}</span>
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   {currentUser
-                    ? `${t("Showing tickets linked to", "সংযুক্ত একাউন্ট")}: ${currentUser.email}`
-                    : t("When the AI cannot find verified knowledge, a ticket is filed here for our human team.")}
+                    ? `${t("Showing Request linked to", "সংযুক্ত একাউন্ট")}: ${currentUser.email}`
+                    : t("When the AI cannot find verified knowledge, a Request is filed here for our human team.")}
                 </p>
                 {lastRefreshedAt && (
                   <p className="text-[10px] text-gray-400 mt-1">
@@ -950,13 +950,13 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                   className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 flex items-center gap-2 cursor-pointer shadow-2xs transition-all active:scale-95 disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 text-[#FF2D2D] ${loadingTickets ? "animate-spin" : ""}`} />
-                  <span>{loadingTickets ? t("Refreshing...", "আপডেট হচ্ছে...") : t("Refresh Tickets", "রিফ্রেশ করুন")}</span>
+                  <span>{loadingTickets ? t("Refreshing...", "আপডেট হচ্ছে...") : t("Refresh Request", "রিফ্রেশ করুন")}</span>
                 </button>
               </div>
             </div>
 
             {loadingTickets ? (
-              <div className="text-center py-12 text-sm text-gray-400">Checking ticket status...</div>
+              <div className="text-center py-12 text-sm text-gray-400">Checking Request status...</div>
             ) : myTickets.length === 0 ? (
               <div className="text-center py-16 bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-3xl space-y-3">
                 <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
@@ -1108,7 +1108,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                   {t(
-                    "Please enter your Email and WhatsApp number. We will automatically create or link your account (no password needed) and save all your AI conversations and support tickets securely in the database.",
+                    "Please enter your Email and WhatsApp number. For further Questions .",
                     "আপনার ইমেইল ও হোয়াটসঅ্যাপ নম্বর দিন। কোনো পাসওয়ার্ড ছাড়াই তাৎক্ষণিক একাউন্ট সংযুক্ত হবে এবং সব কথোপকথন ও টিকেট ডাটাবেজে সংরক্ষিত থাকবে।"
                   )}
                 </p>
@@ -1143,7 +1143,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-[#25D366]" />
-                    <span>{t("WhatsApp Number", "হোয়াটসঅ্যাপ নম্বর")} <span className="text-red-500">*</span></span>
+                    <span>{t("WhatsApp Number +880-", "হোয়াটসঅ্যাপ নম্বর +880-")} <span className="text-red-500">*</span></span>
                   </label>
                   <input
                     type="tel"
@@ -1167,7 +1167,7 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
                     type="text"
                     value={authName}
                     onChange={(e) => setAuthName(e.target.value)}
-                    placeholder="e.g. Alex Rahman"
+                    placeholder="e.g. Arko"
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#FF2D2D]/40 focus:border-[#FF2D2D]"
                   />
                 </div>

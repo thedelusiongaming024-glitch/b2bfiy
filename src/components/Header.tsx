@@ -28,7 +28,7 @@ export default function Header({
     { id: "portfolio", label: t("Projects", "প্রজেক্টস") },
     { id: "packages", label: t("Packages", "প্যাকেজ") },
     { id: "about", label: t("About", "সম্পর্কে") },
-    { id: "faq", label: t("AI FAQ", "এআই সহায়তা") },
+    { id: "faq", label: t("FAQ", "এআই সহায়তা") },
     { id: "contact", label: t("Contact", "যোগাযোগ") },
   ];
 
@@ -150,7 +150,7 @@ export default function Header({
               className="flex items-center space-x-2 px-5 py-2.5 bg-[#101828] hover:bg-black text-white text-xs sm:text-sm font-bold rounded-full shadow-sm hover:shadow-md transition-all cursor-pointer focus:outline-none shrink-0"
               id="header-audit-btn"
             >
-              <span>{t("Get Started", "শুরু করুন")}</span>
+              <span>{t("BE OUR FAMILY", "শুরু করুন")}</span>
               <ArrowRight className="w-4 h-4" />
             </motion.button>
           </div>
