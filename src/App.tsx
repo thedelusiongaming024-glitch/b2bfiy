@@ -4,6 +4,12 @@ import { motion, AnimatePresence } from "motion/react";
 
 // Types
 import { Lead, PortfolioProject, ServicePackage, SiteContent, MediaItem } from "./types";
+import {
+  INITIAL_SITE_CONTENT,
+  INITIAL_PORTFOLIOS,
+  INITIAL_PACKAGES,
+  INITIAL_MEDIA_ITEMS,
+} from "./data/initialData";
 
 // Neon database integration
 import {
@@ -211,46 +217,34 @@ export default function App() {
     }
   };
 
-  // Safe initial site content structure while connecting to database
-  const emptySiteContent: SiteContent = {
-    brandName: "B2bfiy",
-    phone: "+880 1712-345678",
-    email: "hello@b2bfiy.com",
-    socials: { facebook: "", instagram: "", linkedin: "", whatsapp: "+8801712345678" },
-    hero: { badge: "", title: "", highlight: "", description: "", trustText: "" },
-    stats: [],
-    whyChooseUs: [],
-    testimonials: []
-  };
-
   // Central Dynamic State holding all entities directly from live Neon Database
   const [siteContent, setSiteContent] = useState<SiteContent>(() => {
     try {
       const storedContent = localStorage.getItem("b2bfiy_site_content");
       if (storedContent) return JSON.parse(storedContent);
     } catch {}
-    return emptySiteContent;
+    return INITIAL_SITE_CONTENT;
   });
   const [portfolios, setPortfolios] = useState<PortfolioProject[]>(() => {
     try {
       const storedPortfolios = localStorage.getItem("b2bfiy_portfolios");
       if (storedPortfolios) return sortPortfolios(JSON.parse(storedPortfolios));
     } catch {}
-    return [];
+    return INITIAL_PORTFOLIOS;
   });
   const [packages, setPackages] = useState<ServicePackage[]>(() => {
     try {
       const storedPackages = localStorage.getItem("b2bfiy_packages");
       if (storedPackages) return JSON.parse(storedPackages);
     } catch {}
-    return [];
+    return INITIAL_PACKAGES;
   });
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
     try {
       const storedMedia = localStorage.getItem("b2bfiy_media_items");
       if (storedMedia) return JSON.parse(storedMedia);
     } catch {}
-    return [];
+    return INITIAL_MEDIA_ITEMS;
   });
   const [leads, setLeads] = useState<Lead[]>(() => {
     try {
@@ -311,35 +305,36 @@ export default function App() {
 
     // B. Query Neon in background to load updated values
     const syncWithDb = async () => {
-      const { configured } = await getDbStatus();
-      if (!configured) return;
-
-      console.log("[Neon Sync] Database configured. Syncing data...");
-      const dbData = await fetchAllDataFromDb();
-      if (dbData) {
-        if (dbData.siteContent) {
-          setSiteContent(dbData.siteContent);
-          safeSetLocalStorage("b2bfiy_site_content", JSON.stringify(dbData.siteContent));
+      try {
+        console.log("[Neon Sync] Syncing latest data from Neon PostgreSQL database...");
+        const dbData = await fetchAllDataFromDb();
+        if (dbData) {
+          if (dbData.siteContent) {
+            setSiteContent(dbData.siteContent);
+            safeSetLocalStorage("b2bfiy_site_content", JSON.stringify(dbData.siteContent));
+          }
+          if (dbData.portfolios && dbData.portfolios.length > 0) {
+            const sorted = sortPortfolios(dbData.portfolios);
+            setPortfolios(sorted);
+            safeSetLocalStorage("b2bfiy_portfolios", JSON.stringify(sorted));
+          }
+          if (dbData.packages && dbData.packages.length > 0) {
+            setPackages(dbData.packages);
+            safeSetLocalStorage("b2bfiy_packages", JSON.stringify(dbData.packages));
+          }
+          if (dbData.mediaItems && dbData.mediaItems.length > 0) {
+            setMediaItems(dbData.mediaItems);
+            safeSetLocalStorage("b2bfiy_media_items", JSON.stringify(dbData.mediaItems));
+          }
+          if (dbData.leads !== null) {
+            setLeads(dbData.leads);
+            safeSetLocalStorage("b2bfiy_leads", JSON.stringify(dbData.leads));
+          }
+          setIsDbSynced(true);
+          console.log("[Neon Sync] Successfully synchronized all states with database tables.");
         }
-        if (dbData.portfolios !== null) {
-          const sorted = sortPortfolios(dbData.portfolios);
-          setPortfolios(sorted);
-          safeSetLocalStorage("b2bfiy_portfolios", JSON.stringify(sorted));
-        }
-        if (dbData.packages !== null) {
-          setPackages(dbData.packages);
-          safeSetLocalStorage("b2bfiy_packages", JSON.stringify(dbData.packages));
-        }
-        if (dbData.mediaItems !== null) {
-          setMediaItems(dbData.mediaItems);
-          safeSetLocalStorage("b2bfiy_media_items", JSON.stringify(dbData.mediaItems));
-        }
-        if (dbData.leads !== null) {
-          setLeads(dbData.leads);
-          safeSetLocalStorage("b2bfiy_leads", JSON.stringify(dbData.leads));
-        }
-        setIsDbSynced(true);
-        console.log("[Neon Sync] Successfully synchronized all states with database tables.");
+      } catch (err) {
+        console.warn("[Neon Sync] Background sync warning:", err);
       }
     };
 

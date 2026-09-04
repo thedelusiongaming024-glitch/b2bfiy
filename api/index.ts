@@ -8,6 +8,12 @@ import path from "path";
 import { registerAiRoutes } from "./ai/routes";
 import { indexDocument } from "./ai/ragEngine";
 import { invalidateDatabaseContextCache } from "./ai/databaseContext";
+import {
+  DEFAULT_SITE_CONTENT,
+  DEFAULT_PORTFOLIOS,
+  DEFAULT_PACKAGES,
+  DEFAULT_MEDIA_ITEMS,
+} from "./bootstrapData";
 
 // ==========================================
 // 1. DATABASE CONNECTION & IN-MEMORY FALLBACK
@@ -564,7 +570,10 @@ export async function ensureSchema(): Promise<void> {
       }
 
       schemaInitialized = true;
-      // Asynchronously bootstrap baseline FAQs and RAG knowledge if empty
+      // Asynchronously bootstrap baseline agency data, FAQs and RAG knowledge if empty
+      bootstrapAgencyDataIfEmpty().catch((err) =>
+        console.warn("Bootstrap agency data notice:", err?.message || err)
+      );
       bootstrapAiKnowledgeIfEmpty().catch((err) =>
         console.warn("Bootstrap AI knowledge notice:", err?.message || err)
       );
@@ -576,6 +585,77 @@ export async function ensureSchema(): Promise<void> {
   })();
 
   return schemaInitPromise;
+}
+
+export async function bootstrapAgencyDataIfEmpty(): Promise<void> {
+  if (!hasDatabaseUrl()) return;
+  try {
+    const p = getPool();
+
+    // 1. Site Content
+    const contentCountRows = await p.query("SELECT COUNT(*) as count FROM site_content");
+    const contentCount = parseInt(contentCountRows.rows[0]?.count || "0", 10);
+    if (contentCount === 0) {
+      const serialized = JSON.stringify(DEFAULT_SITE_CONTENT);
+      await p.query(
+        `INSERT INTO site_content (id, data, updated_at) VALUES ('main_site_content', $1::jsonb, NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        [serialized]
+      );
+      await p.query(
+        `INSERT INTO site_content (id, data, updated_at) VALUES ('default_site_content', $1::jsonb, NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        [serialized]
+      );
+      console.log("[Bootstrap] Seeded baseline site_content into Neon database.");
+    }
+
+    // 2. Portfolios
+    const portfolioCountRows = await p.query("SELECT COUNT(*) as count FROM portfolios");
+    const portfolioCount = parseInt(portfolioCountRows.rows[0]?.count || "0", 10);
+    if (portfolioCount === 0) {
+      for (const proj of DEFAULT_PORTFOLIOS) {
+        await p.query(
+          `INSERT INTO portfolios (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [proj.id, JSON.stringify(proj)]
+        );
+      }
+      console.log(`[Bootstrap] Seeded ${DEFAULT_PORTFOLIOS.length} baseline portfolios into Neon database.`);
+    }
+
+    // 3. Packages
+    const packageCountRows = await p.query("SELECT COUNT(*) as count FROM packages");
+    const packageCount = parseInt(packageCountRows.rows[0]?.count || "0", 10);
+    if (packageCount === 0) {
+      for (const pkg of DEFAULT_PACKAGES) {
+        await p.query(
+          `INSERT INTO packages (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [pkg.id, JSON.stringify(pkg)]
+        );
+      }
+      console.log(`[Bootstrap] Seeded ${DEFAULT_PACKAGES.length} baseline packages into Neon database.`);
+    }
+
+    // 4. Media Items
+    const mediaCountRows = await p.query("SELECT COUNT(*) as count FROM media_items");
+    const mediaCount = parseInt(mediaCountRows.rows[0]?.count || "0", 10);
+    if (mediaCount === 0) {
+      for (const item of DEFAULT_MEDIA_ITEMS) {
+        await p.query(
+          `INSERT INTO media_items (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [item.id, JSON.stringify(item)]
+        );
+      }
+      console.log(`[Bootstrap] Seeded ${DEFAULT_MEDIA_ITEMS.length} baseline media items into Neon database.`);
+    }
+
+    invalidateDatabaseContextCache();
+  } catch (err) {
+    console.error("Error in bootstrapAgencyDataIfEmpty:", err);
+  }
 }
 
 export async function bootstrapAiKnowledgeIfEmpty(): Promise<void> {
@@ -1425,15 +1505,34 @@ function createListTableHandler(tableName: string) {
   return async function handler(req: Request, res: Response) {
     if (req.method === "GET") {
       if (!hasDatabaseUrl()) {
+        if (tableName === "portfolios") return res.status(200).json({ data: DEFAULT_PORTFOLIOS });
+        if (tableName === "packages") return res.status(200).json({ data: DEFAULT_PACKAGES });
+        if (tableName === "media_items") return res.status(200).json({ data: DEFAULT_MEDIA_ITEMS });
         res.status(200).json({ data: [] });
         return;
       }
       try {
-        const rows = await query<{ id: string; data: any }>(`SELECT id, data FROM ${tableName}`);
-        res.status(200).json({ data: rows.map((r) => ({ ...r.data, id: r.id })) });
+        let rows = await query<{ id: string; data: any }>(`SELECT id, data FROM ${tableName}`);
+        if (rows.length === 0) {
+          // If empty, immediately trigger auto-bootstrap
+          await bootstrapAgencyDataIfEmpty();
+          rows = await query<{ id: string; data: any }>(`SELECT id, data FROM ${tableName}`);
+        }
+        if (rows.length > 0) {
+          res.status(200).json({ data: rows.map((r) => ({ ...r.data, id: r.id })) });
+        } else {
+          // Fallback to default arrays if still empty
+          if (tableName === "portfolios") res.status(200).json({ data: DEFAULT_PORTFOLIOS });
+          else if (tableName === "packages") res.status(200).json({ data: DEFAULT_PACKAGES });
+          else if (tableName === "media_items") res.status(200).json({ data: DEFAULT_MEDIA_ITEMS });
+          else res.status(200).json({ data: [] });
+        }
       } catch (err: any) {
         console.error(`Fetch ${tableName} failed:`, err);
-        res.status(500).json({ error: err?.message || `Failed to load ${tableName}.` });
+        if (tableName === "portfolios") res.status(200).json({ data: DEFAULT_PORTFOLIOS });
+        else if (tableName === "packages") res.status(200).json({ data: DEFAULT_PACKAGES });
+        else if (tableName === "media_items") res.status(200).json({ data: DEFAULT_MEDIA_ITEMS });
+        else res.status(500).json({ error: err?.message || `Failed to load ${tableName}.` });
       }
       return;
     }
@@ -1552,16 +1651,22 @@ export function createApiApp() {
   app.all("/api/content", async (req: Request, res: Response) => {
     if (req.method === "GET") {
       if (!hasDatabaseUrl()) {
-        res.status(200).json({ data: null });
+        res.status(200).json({ data: DEFAULT_SITE_CONTENT });
         return;
       }
       try {
-        const rows = await query<{ data: any }>(
+        let rows = await query<{ data: any }>(
           "SELECT data FROM site_content WHERE id = 'main_site_content' OR id = 'default_site_content' ORDER BY CASE WHEN id = 'main_site_content' THEN 0 ELSE 1 END LIMIT 1"
         );
-        res.status(200).json({ data: rows[0]?.data ?? null });
+        if (rows.length === 0) {
+          await bootstrapAgencyDataIfEmpty();
+          rows = await query<{ data: any }>(
+            "SELECT data FROM site_content WHERE id = 'main_site_content' OR id = 'default_site_content' ORDER BY CASE WHEN id = 'main_site_content' THEN 0 ELSE 1 END LIMIT 1"
+          );
+        }
+        res.status(200).json({ data: rows[0]?.data ?? DEFAULT_SITE_CONTENT });
       } catch (err: any) {
-        res.status(500).json({ error: err?.message || "Failed to load content" });
+        res.status(200).json({ data: DEFAULT_SITE_CONTENT });
       }
       return;
     }
