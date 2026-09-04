@@ -383,39 +383,36 @@ export async function ensureSchema(): Promise<void> {
   schemaInitPromise = (async () => {
     try {
       const p = getPool();
-      await p.query(`
-        CREATE TABLE IF NOT EXISTS admin_users (
+
+      // Run fundamental table creations safely
+      const schemaStatements = [
+        `CREATE TABLE IF NOT EXISTS admin_users (
           id VARCHAR(255) PRIMARY KEY,
           email VARCHAR(255) UNIQUE NOT NULL,
           password_hash TEXT NOT NULL,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE TABLE IF NOT EXISTS site_content (
+        )`,
+        `CREATE TABLE IF NOT EXISTS site_content (
           id VARCHAR(255) PRIMARY KEY,
           data JSONB NOT NULL,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE TABLE IF NOT EXISTS portfolios (
+        )`,
+        `CREATE TABLE IF NOT EXISTS portfolios (
           id VARCHAR(255) PRIMARY KEY,
           data JSONB NOT NULL,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE TABLE IF NOT EXISTS packages (
+        )`,
+        `CREATE TABLE IF NOT EXISTS packages (
           id VARCHAR(255) PRIMARY KEY,
           data JSONB NOT NULL,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE TABLE IF NOT EXISTS media_items (
+        )`,
+        `CREATE TABLE IF NOT EXISTS media_items (
           id VARCHAR(255) PRIMARY KEY,
           data JSONB NOT NULL,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE TABLE IF NOT EXISTS leads (
+        )`,
+        `CREATE TABLE IF NOT EXISTS leads (
           id VARCHAR(255) PRIMARY KEY,
           type VARCHAR(100) NOT NULL,
           full_name VARCHAR(255) NOT NULL,
@@ -429,9 +426,8 @@ export async function ensureSchema(): Promise<void> {
           status VARCHAR(50) DEFAULT 'new',
           notes TEXT,
           raw_data JSONB
-        );
-
-        CREATE TABLE IF NOT EXISTS analytics_events (
+        )`,
+        `CREATE TABLE IF NOT EXISTS analytics_events (
           id VARCHAR(255) PRIMARY KEY,
           event_name VARCHAR(100) NOT NULL,
           ts TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -440,46 +436,38 @@ export async function ensureSchema(): Promise<void> {
           client_ip VARCHAR(100),
           user_agent TEXT,
           params JSONB
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_analytics_events_ts ON analytics_events(ts);
-        CREATE INDEX IF NOT EXISTS idx_leads_submitted_at ON leads(submitted_at DESC);
-
-        -- AI FAQ & RAG Architecture
-        CREATE EXTENSION IF NOT EXISTS vector;
-
-        CREATE TABLE IF NOT EXISTS users (
+        )`,
+        `CREATE TABLE IF NOT EXISTS users (
           id VARCHAR(255) PRIMARY KEY,
           name VARCHAR(255),
-          email VARCHAR(255) UNIQUE,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          whatsapp VARCHAR(255),
+          role VARCHAR(50) DEFAULT 'user',
           password_hash TEXT,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE TABLE IF NOT EXISTS faq_categories (
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )`,
+        `CREATE TABLE IF NOT EXISTS faq_categories (
           id VARCHAR(255) PRIMARY KEY,
           name VARCHAR(255) NOT NULL UNIQUE,
           description TEXT,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE TABLE IF NOT EXISTS faqs (
+        )`,
+        `CREATE TABLE IF NOT EXISTS faqs (
           id VARCHAR(255) PRIMARY KEY,
           category_id VARCHAR(255) REFERENCES faq_categories(id) ON DELETE SET NULL,
           question TEXT NOT NULL,
           answer TEXT NOT NULL,
           status VARCHAR(50) DEFAULT 'published',
+          show_in_browse BOOLEAN DEFAULT true,
+          display_order INT DEFAULT 0,
           created_by VARCHAR(255),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_faqs_status ON faqs(status);
-        CREATE INDEX IF NOT EXISTS idx_faqs_category ON faqs(category_id);
-
-        CREATE TABLE IF NOT EXISTS knowledge_documents (
+        )`,
+        `CREATE TABLE IF NOT EXISTS knowledge_documents (
           id VARCHAR(255) PRIMARY KEY,
           title VARCHAR(255) NOT NULL,
           content TEXT NOT NULL,
@@ -487,47 +475,30 @@ export async function ensureSchema(): Promise<void> {
           created_by VARCHAR(255),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_knowledge_docs_status ON knowledge_documents(status);
-
-        CREATE TABLE IF NOT EXISTS knowledge_chunks (
-          id VARCHAR(255) PRIMARY KEY,
-          document_id VARCHAR(255) NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
-          content TEXT NOT NULL,
-          embedding vector(3072),
-          chunk_index INT NOT NULL DEFAULT 0,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks(document_id);
-
-        CREATE TABLE IF NOT EXISTS conversations (
+        )`,
+        `CREATE TABLE IF NOT EXISTS conversations (
           id VARCHAR(255) PRIMARY KEY,
           user_id VARCHAR(255),
+          user_email VARCHAR(255),
+          user_whatsapp VARCHAR(255),
           session_id VARCHAR(255) NOT NULL,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_conversations_session ON conversations(session_id);
-        CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
-
-        CREATE TABLE IF NOT EXISTS messages (
+        )`,
+        `CREATE TABLE IF NOT EXISTS messages (
           id VARCHAR(255) PRIMARY KEY,
           conversation_id VARCHAR(255) NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
           role VARCHAR(50) NOT NULL,
           content TEXT NOT NULL,
           source VARCHAR(50) NOT NULL,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at ASC);
-
-        CREATE TABLE IF NOT EXISTS support_tickets (
+        )`,
+        `CREATE TABLE IF NOT EXISTS support_tickets (
           id VARCHAR(255) PRIMARY KEY,
           ticket_number SERIAL,
           user_id VARCHAR(255),
+          user_email VARCHAR(255),
+          user_whatsapp VARCHAR(255),
           session_id VARCHAR(255),
           conversation_id VARCHAR(255) REFERENCES conversations(id) ON DELETE SET NULL,
           question TEXT NOT NULL,
@@ -536,31 +507,62 @@ export async function ensureSchema(): Promise<void> {
           assigned_to VARCHAR(255),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           answered_at TIMESTAMP WITH TIME ZONE
-        );
+        )`,
+      ];
 
-        CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
-        CREATE INDEX IF NOT EXISTS idx_support_tickets_session ON support_tickets(session_id);
-        CREATE INDEX IF NOT EXISTS idx_support_tickets_created ON support_tickets(created_at DESC);
+      for (const stmt of schemaStatements) {
+        try {
+          await p.query(stmt);
+        } catch (stmtErr: any) {
+          console.warn("Schema statement notice:", stmtErr?.message || stmtErr);
+        }
+      }
 
-        ALTER TABLE faqs ADD COLUMN IF NOT EXISTS show_in_browse BOOLEAN DEFAULT true;
-        ALTER TABLE faqs ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
-        CREATE INDEX IF NOT EXISTS idx_faqs_browse ON faqs(show_in_browse, status);
+      // Column migrations (safe if table already existed prior)
+      const alterStatements = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(255)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'user'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+        "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)",
+        "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_whatsapp VARCHAR(255)",
+        "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)",
+        "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS user_whatsapp VARCHAR(255)",
+        "ALTER TABLE faqs ADD COLUMN IF NOT EXISTS show_in_browse BOOLEAN DEFAULT true",
+        "ALTER TABLE faqs ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0",
+      ];
 
-        -- User and Conversation Auto-Association
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(255);
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'user';
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      for (const alter of alterStatements) {
+        try {
+          await p.query(alter);
+        } catch (alterErr: any) {
+          console.warn("Alter table notice:", alterErr?.message || alterErr);
+        }
+      }
 
-        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);
-        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_whatsapp VARCHAR(255);
-        CREATE INDEX IF NOT EXISTS idx_conversations_user_email ON conversations(user_email);
+      // Try vector extension and vector column safely
+      try {
+        await p.query("CREATE EXTENSION IF NOT EXISTS vector");
+        await p.query(`CREATE TABLE IF NOT EXISTS knowledge_chunks (
+          id VARCHAR(255) PRIMARY KEY,
+          document_id VARCHAR(255) NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          embedding vector(3072),
+          chunk_index INT NOT NULL DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )`);
+      } catch (vectorErr: any) {
+        console.warn("Vector extension not available or skipped; creating fallback knowledge_chunks table:", vectorErr?.message || vectorErr);
+        try {
+          await p.query(`CREATE TABLE IF NOT EXISTS knowledge_chunks (
+            id VARCHAR(255) PRIMARY KEY,
+            document_id VARCHAR(255) NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            chunk_index INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          )`);
+        } catch {}
+      }
 
-        ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);
-        ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS user_whatsapp VARCHAR(255);
-        CREATE INDEX IF NOT EXISTS idx_support_tickets_user ON support_tickets(user_id);
-        CREATE INDEX IF NOT EXISTS idx_support_tickets_user_email ON support_tickets(user_email);
-      `);
       schemaInitialized = true;
       // Asynchronously bootstrap baseline FAQs and RAG knowledge if empty
       bootstrapAiKnowledgeIfEmpty().catch((err) =>
@@ -1830,7 +1832,7 @@ export function createApiApp() {
     }
   });
 
-  // AI Support & RAG Routes
+// AI Support & RAG Routes
   registerAiRoutes(app);
 
   return app;
@@ -1840,5 +1842,33 @@ export function createApiApp() {
 const app = createApiApp();
 
 export default function handler(req: any, res: any) {
+  // 1. Recover true original URL when rewritten by Vercel
+  const forwardedUri =
+    req.headers?.["x-forwarded-uri"] ||
+    req.headers?.["x-matched-path"] ||
+    req.headers?.["x-invoke-path"] ||
+    req.query?.path;
+
+  if (typeof forwardedUri === "string" && forwardedUri && forwardedUri !== "/api" && forwardedUri !== "/api/index") {
+    req.url = forwardedUri.startsWith("/") ? forwardedUri : `/${forwardedUri}`;
+    if (!req.url.startsWith("/api") && !req.url.startsWith("/sitemap") && !req.url.startsWith("/robots")) {
+      req.url = `/api${req.url}`;
+    }
+  }
+
+  // 2. Add CORS headers for cross-origin or preview deployments
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Origin", req.headers?.origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-session-id"
+  );
+
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
   return app(req, res);
 }

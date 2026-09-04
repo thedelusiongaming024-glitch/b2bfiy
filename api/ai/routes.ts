@@ -21,7 +21,7 @@ export function registerAiRoutes(app: Express) {
   // =========================================================================
 
   // 0. User passwordless instant login & auto account creation (Email + WhatsApp)
-  app.post("/api/ai/user-auth", async (req: Request, res: Response) => {
+  app.post(["/api/ai/user-auth", "/ai/user-auth", "/user-auth"], async (req: Request, res: Response) => {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
       const email = (body?.email || "").trim().toLowerCase();
@@ -48,19 +48,30 @@ export function registerAiRoutes(app: Express) {
 
       let targetUserId: string;
       let isNewUser = false;
+      let userRole = "user";
+      let resolvedName = name;
+      let resolvedWhatsapp = whatsapp;
 
       if (existing.length > 0) {
         const user = existing[0];
         targetUserId = user.id;
-        await query(
-          `UPDATE users
-           SET whatsapp = CASE WHEN $1::text <> '' THEN $1 ELSE whatsapp END,
-               name = CASE WHEN $2::text <> '' THEN $2 ELSE name END,
-               last_login_at = NOW(),
-               updated_at = NOW()
-           WHERE id = $3`,
-          [whatsapp, name, user.id]
-        );
+        userRole = user.role || "user";
+        resolvedName = name || user.name || "";
+        resolvedWhatsapp = whatsapp || user.whatsapp || "";
+
+        try {
+          await query(
+            `UPDATE users
+             SET whatsapp = COALESCE(NULLIF($1, ''), whatsapp),
+                 name = COALESCE(NULLIF($2, ''), name),
+                 last_login_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = $3`,
+            [whatsapp || null, name || null, user.id]
+          );
+        } catch (updateErr) {
+          console.warn("User update notice:", updateErr);
+        }
       } else {
         isNewUser = true;
         targetUserId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -98,9 +109,9 @@ export function registerAiRoutes(app: Express) {
         user: {
           id: targetUserId,
           email,
-          name,
-          whatsapp,
-          role: existing[0]?.role || "user",
+          name: resolvedName,
+          whatsapp: resolvedWhatsapp,
+          role: userRole,
         },
         token,
       });
@@ -111,7 +122,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   // 1. Chat with AI assistant
-  app.post("/api/ai/chat", async (req: Request, res: Response) => {
+  app.post(["/api/ai/chat", "/ai/chat", "/api/chat"], async (req: Request, res: Response) => {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
       const message = (body?.message || "").trim();
@@ -155,7 +166,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   // 2. Get specific conversation history with access check for user account
-  app.get("/api/ai/conversations/:id", async (req: Request, res: Response) => {
+  app.get(["/api/ai/conversations/:id", "/ai/conversations/:id"], async (req: Request, res: Response) => {
     try {
       const convId = req.params.id;
       const sessionId = (req.headers["x-session-id"] as string) || "";
@@ -204,7 +215,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   // 2.5 Get full active history (conversation + all messages) for a user account
-  app.get("/api/ai/user/history", async (req: Request, res: Response) => {
+  app.get(["/api/ai/user/history", "/ai/user/history"], async (req: Request, res: Response) => {
     try {
       const userEmail = ((req.query.email as string) || "").trim().toLowerCase();
       const userId = ((req.query.userId as string) || "").trim();
@@ -281,7 +292,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   // 2.5 Get all past conversations for a user account
-  app.get("/api/ai/user/conversations", async (req: Request, res: Response) => {
+  app.get(["/api/ai/user/conversations", "/ai/user/conversations"], async (req: Request, res: Response) => {
     try {
       const userEmail = ((req.query.email as string) || "").trim().toLowerCase();
       const userId = ((req.query.userId as string) || "").trim();
@@ -316,7 +327,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   // 3. User support tickets list (queries by user_id, user_email, or session_id)
-  app.get("/api/support/my-tickets", async (req: Request, res: Response) => {
+  app.get(["/api/support/my-tickets", "/support/my-tickets", "/api/ai/tickets"], async (req: Request, res: Response) => {
     try {
       const sessionId = (req.headers["x-session-id"] as string) || (req.query?.sessionId as string) || "";
       const userEmail = ((req.query?.email as string) || "").trim().toLowerCase();
@@ -364,7 +375,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   // 4. Get specific support ticket by ID
-  app.get("/api/support/tickets/:id", async (req: Request, res: Response) => {
+  app.get(["/api/support/tickets/:id", "/support/tickets/:id"], async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.id;
       const sessionId = req.headers["x-session-id"] as string;
@@ -394,7 +405,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   // 5. Public FAQs list
-  app.get("/api/ai/faqs/public", async (_req: Request, res: Response) => {
+  app.get(["/api/ai/faqs/public", "/ai/faqs/public"], async (_req: Request, res: Response) => {
     try {
       const rows = await query(
         `SELECT f.id, f.question, f.answer, f.category_id, COALESCE(f.show_in_browse, true) as show_in_browse,
