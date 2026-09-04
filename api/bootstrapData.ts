@@ -1,4 +1,4 @@
-import { SiteContent, PortfolioProject, ServicePackage, MediaItem } from "../src/types";
+import type { SiteContent, PortfolioProject, ServicePackage, MediaItem } from "../src/types.js";
 
 export const DEFAULT_SITE_CONTENT: SiteContent = {
   brandName: "B2bfiy",

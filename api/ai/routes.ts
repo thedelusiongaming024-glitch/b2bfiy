@@ -1,9 +1,9 @@
 import { Express, Request, Response } from "express";
-import { query, getSessionFromRequest, hasDatabaseUrl, signSessionToken } from "../index";
-import { processUserMessage } from "./orchestrator";
-import { indexDocument, reindexAllKnowledge, retrieveRelevantChunks } from "./ragEngine";
-import { matchFaq } from "./faqMatcher";
-import { getAIConfig, getAIService } from "./provider";
+import { query, getSessionFromRequest, hasDatabaseUrl, signSessionToken } from "../index.js";
+import { processUserMessage } from "./orchestrator.js";
+import { indexDocument, reindexAllKnowledge, retrieveRelevantChunks } from "./ragEngine.js";
+import { matchFaq } from "./faqMatcher.js";
+import { getAIConfig, getAIService } from "./provider.js";
 
 export function registerAiRoutes(app: Express) {
   // Helper for admin auth verification

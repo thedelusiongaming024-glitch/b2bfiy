@@ -1,5 +1,5 @@
-import { query } from "../index";
-import { getAIService } from "./provider";
+import { query } from "../index.js";
+import { getAIService } from "./provider.js";
 
 export interface RagConfig {
   topK: number;

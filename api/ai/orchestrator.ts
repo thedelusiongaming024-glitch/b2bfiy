@@ -1,8 +1,8 @@
-import { query } from "../index";
-import { matchFaq } from "./faqMatcher";
-import { retrieveRelevantChunks } from "./ragEngine";
-import { getAIService } from "./provider";
-import { getLiveDatabaseContext } from "./databaseContext";
+import { query } from "../index.js";
+import { matchFaq } from "./faqMatcher.js";
+import { retrieveRelevantChunks } from "./ragEngine.js";
+import { getAIService } from "./provider.js";
+import { getLiveDatabaseContext } from "./databaseContext.js";
 
 export interface ChatRequest {
   message: string;

@@ -5,15 +5,15 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
-import { registerAiRoutes } from "./ai/routes";
-import { indexDocument } from "./ai/ragEngine";
-import { invalidateDatabaseContextCache } from "./ai/databaseContext";
+import { registerAiRoutes } from "./ai/routes.js";
+import { indexDocument } from "./ai/ragEngine.js";
+import { invalidateDatabaseContextCache } from "./ai/databaseContext.js";
 import {
   DEFAULT_SITE_CONTENT,
   DEFAULT_PORTFOLIOS,
   DEFAULT_PACKAGES,
   DEFAULT_MEDIA_ITEMS,
-} from "./bootstrapData";
+} from "./bootstrapData.js";
 
 // ==========================================
 // 1. DATABASE CONNECTION & IN-MEMORY FALLBACK
