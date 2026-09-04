@@ -367,25 +367,36 @@ export default function FAQ({ setRoute, siteContent }: FAQProps) {
     try {
       const res = await fetch("/api/ai/user-auth", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-id": sessionId,
+        },
         body: JSON.stringify({
           email: cleanEmail,
           whatsapp: cleanWhatsapp,
           name: cleanName,
+          sessionId,
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { error: "Authentication service responded unexpectedly. Please try again." };
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Authentication failed.");
       }
 
       const authedUser: UserProfile = {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        whatsapp: data.user.whatsapp,
-        role: data.user.role,
+        id: data.user?.id || `usr_${Date.now()}`,
+        email: data.user?.email || cleanEmail,
+        name: data.user?.name || cleanName,
+        whatsapp: data.user?.whatsapp || cleanWhatsapp,
+        role: data.user?.role || "user",
         token: data.token,
       };
 

@@ -10,7 +10,7 @@ import { indexDocument } from "./ai/ragEngine";
 import { invalidateDatabaseContextCache } from "./ai/databaseContext";
 
 // ==========================================
-// 1. DATABASE CONNECTION (PostgreSQL / Neon)
+// 1. DATABASE CONNECTION & IN-MEMORY FALLBACK
 // ==========================================
 let pool: Pool | null = null;
 
@@ -42,11 +42,335 @@ export function getPool(): Pool {
   return pool;
 }
 
+// In-Memory resilient database store for environments without Neon credentials or during DB downtime
+interface MemoryDb {
+  users: Array<{ id: string; name: string | null; email: string; whatsapp: string | null; role: string; created_at: string; updated_at: string; last_login_at: string }>;
+  conversations: Array<{ id: string; session_id: string; user_id: string | null; user_email: string | null; user_whatsapp: string | null; created_at: string; updated_at: string }>;
+  messages: Array<{ id: string; conversation_id: string; role: string; content: string; source: string; created_at: string }>;
+  support_tickets: Array<{ id: string; ticket_number: number; session_id: string | null; conversation_id: string | null; user_id: string | null; user_email: string | null; user_whatsapp: string | null; question: string; status: string; admin_answer: string | null; created_at: string; answered_at: string | null }>;
+  faqs: Array<{ id: string; category_id: string | null; question: string; answer: string; status: string; show_in_browse: boolean; display_order: number; created_by?: string; created_at?: string; updated_at?: string }>;
+  faq_categories: Array<{ id: string; name: string; description: string | null }>;
+  knowledge_documents: Array<{ id: string; title: string; content: string; status: string; created_by?: string; created_at?: string; updated_at?: string }>;
+  knowledge_chunks: Array<{ id: string; document_id: string; content: string; chunk_index: number }>;
+  admin_users: Array<{ id: string; email: string; password_hash: string; created_at: string }>;
+  site_content: Record<string, any>;
+  packages: Array<{ id: string; data: any; updated_at: string }>;
+  portfolios: Array<{ id: string; data: any; updated_at: string }>;
+  media_items: Array<{ id: string; data: any; updated_at: string }>;
+  leads: Array<any>;
+}
+
+const memoryDb: MemoryDb = {
+  users: [],
+  conversations: [],
+  messages: [],
+  support_tickets: [],
+  faqs: [
+    {
+      id: "faq_services",
+      category_id: "cat_general",
+      question: "What core digital services does B2bfiy offer?",
+      answer: "B2bfiy provides four core premium services: 1. Full-Stack Web Development & Shopify Stores; 2. Graphic Design, Branding & Visual Identity; 3. Video Editing & Motion Graphics for TikTok, Reels & YouTube; 4. Monthly Social Media Management & Growth Retainers.",
+      status: "published",
+      show_in_browse: true,
+      display_order: 1,
+    },
+    {
+      id: "faq_pricing",
+      category_id: "cat_pricing",
+      question: "How does B2bfiy package and pricing structure work?",
+      answer: "We offer clear, transparent fixed-scope packages as well as flexible monthly retainers. Custom web design ranges from single landing pages to complete SaaS/eCommerce platforms. Graphic design & video editing are available per-deliverable or as dedicated monthly capacity. Request a free audit to get an exact custom quote.",
+      status: "published",
+      show_in_browse: true,
+      display_order: 2,
+    },
+    {
+      id: "faq_turnaround",
+      category_id: "cat_general",
+      question: "What is your typical project delivery turnaround time?",
+      answer: "Standard landing pages and brand visual identities are delivered within 3-7 business days. High-impact video edits have a 24-48 hour turnaround on retainers. Full custom web applications and eCommerce stores typically take 2-4 weeks depending on scope.",
+      status: "published",
+      show_in_browse: true,
+      display_order: 3,
+    },
+    {
+      id: "faq_revisions",
+      category_id: "cat_policies",
+      question: "What is your policy regarding revisions and client satisfaction?",
+      answer: "Every fixed-scope project includes 2 rounds of structural revisions and unlimited minor tweaks before final signoff. On monthly retainers, revisions are continuous and prioritized with dedicated agency bandwidth.",
+      status: "published",
+      show_in_browse: true,
+      display_order: 4,
+    },
+  ],
+  faq_categories: [
+    { id: "cat_general", name: "General & Services", description: "Agency overview and deliverables" },
+    { id: "cat_pricing", name: "Pricing & Retainers", description: "Cost structures and payment terms" },
+    { id: "cat_policies", name: "Policies & Turnarounds", description: "Timelines, revisions, and guarantees" },
+  ],
+  knowledge_documents: [
+    {
+      id: "doc_agency_overview",
+      title: "B2bfiy Agency Overview, Services, and Workflow",
+      content: "B2bfiy is a premier creative and digital agency based in Dhaka, Bangladesh, serving global and domestic businesses with Web Development, Graphic Design, Video Editing, and Social Media Management.",
+      status: "published",
+    },
+  ],
+  knowledge_chunks: [],
+  admin_users: [],
+  site_content: {},
+  packages: [],
+  portfolios: [],
+  media_items: [],
+  leads: [],
+};
+
+let ticketNumberCounter = 1001;
+
+function runMemoryQuery<T = any>(text: string, params: any[] = []): T[] {
+  const sql = text.trim();
+  const normalized = sql.replace(/\s+/g, " ");
+
+  // 1. Users table
+  if (normalized.startsWith("SELECT") && normalized.includes("FROM users WHERE LOWER(email) = LOWER($1)")) {
+    const emailParam = (params[0] || "").toString().toLowerCase().trim();
+    const user = memoryDb.users.find((u) => u.email.toLowerCase() === emailParam);
+    return user ? ([user] as unknown as T[]) : [];
+  }
+
+  if (normalized.startsWith("INSERT INTO users")) {
+    const id = params[0] || `usr_${Date.now()}`;
+    const name = params[1] || null;
+    const email = (params[2] || "").toString().toLowerCase().trim();
+    const whatsapp = params[3] || null;
+    const role = "user";
+    const now = new Date().toISOString();
+
+    const existingIdx = memoryDb.users.findIndex((u) => u.email.toLowerCase() === email);
+    const userObj = { id, name, email, whatsapp, role, created_at: now, updated_at: now, last_login_at: now };
+    if (existingIdx >= 0) {
+      memoryDb.users[existingIdx] = { ...memoryDb.users[existingIdx], ...userObj, id: memoryDb.users[existingIdx].id };
+      return [memoryDb.users[existingIdx]] as unknown as T[];
+    } else {
+      memoryDb.users.push(userObj);
+      return [userObj] as unknown as T[];
+    }
+  }
+
+  if (normalized.startsWith("UPDATE users")) {
+    const user = memoryDb.users.find((u) => u.id === params[params.length - 1] || u.email.toLowerCase() === (params[0] || "").toString().toLowerCase());
+    if (user) {
+      if (params[0]) user.whatsapp = params[0];
+      if (params[1]) user.name = params[1];
+      user.updated_at = new Date().toISOString();
+      user.last_login_at = new Date().toISOString();
+    }
+    return [] as T[];
+  }
+
+  // 2. Conversations table
+  if (normalized.startsWith("SELECT") && normalized.includes("FROM conversations WHERE id = $1")) {
+    const conv = memoryDb.conversations.find((c) => c.id === params[0]);
+    return conv ? ([conv] as unknown as T[]) : [];
+  }
+
+  if (normalized.startsWith("SELECT") && normalized.includes("FROM conversations WHERE (LOWER(user_email) = LOWER($1)")) {
+    const email = (params[0] || "").toString().toLowerCase();
+    const userId = params[1] || "";
+    const conv = memoryDb.conversations
+      .filter((c) => (email && c.user_email?.toLowerCase() === email) || (userId && c.user_id === userId))
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
+    return conv ? ([conv] as unknown as T[]) : [];
+  }
+
+  if (normalized.startsWith("SELECT") && normalized.includes("FROM conversations WHERE session_id = $1")) {
+    const sid = params[0] || "";
+    const conv = memoryDb.conversations
+      .filter((c) => c.session_id === sid && (!c.user_email || c.user_email === ""))
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
+    return conv ? ([conv] as unknown as T[]) : [];
+  }
+
+  if (normalized.startsWith("INSERT INTO conversations")) {
+    const convObj = {
+      id: params[0],
+      session_id: params[1],
+      user_id: params[2] || null,
+      user_email: params[3] ? params[3].toLowerCase() : null,
+      user_whatsapp: params[4] || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    memoryDb.conversations.push(convObj);
+    return [convObj] as unknown as T[];
+  }
+
+  if (normalized.startsWith("UPDATE conversations")) {
+    const convId = params[0];
+    const conv = memoryDb.conversations.find((c) => c.id === convId);
+    if (conv) {
+      if (params[1]) conv.user_id = params[1];
+      if (params[2]) conv.user_email = params[2].toLowerCase();
+      if (params[3]) conv.user_whatsapp = params[3];
+      conv.updated_at = new Date().toISOString();
+    }
+    // Handle session link update: WHERE session_id = $4
+    if (normalized.includes("WHERE session_id = $4")) {
+      const targetUserId = params[0];
+      const targetEmail = (params[1] || "").toLowerCase();
+      const targetWhatsapp = params[2];
+      const sid = params[3];
+      memoryDb.conversations.forEach((c) => {
+        if (c.session_id === sid && (!c.user_email || c.user_email === "")) {
+          c.user_id = targetUserId;
+          c.user_email = targetEmail;
+          if (targetWhatsapp) c.user_whatsapp = targetWhatsapp;
+          c.updated_at = new Date().toISOString();
+        }
+      });
+    }
+    return [] as T[];
+  }
+
+  // 3. Messages table
+  if (normalized.startsWith("INSERT INTO messages")) {
+    const msgObj = {
+      id: params[0],
+      conversation_id: params[1],
+      role: params[2] || "user",
+      content: params[3] || "",
+      source: params[4] || "USER",
+      created_at: new Date().toISOString(),
+    };
+    memoryDb.messages.push(msgObj);
+    return [msgObj] as unknown as T[];
+  }
+
+  if (normalized.startsWith("SELECT") && normalized.includes("FROM messages WHERE conversation_id = $1")) {
+    const convId = params[0];
+    const msgs = memoryDb.messages
+      .filter((m) => m.conversation_id === convId)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    return msgs as unknown as T[];
+  }
+
+  // 4. Support Tickets
+  if (normalized.startsWith("INSERT INTO support_tickets")) {
+    const ticketObj = {
+      id: params[0],
+      ticket_number: ticketNumberCounter++,
+      session_id: params[1] || null,
+      conversation_id: params[2] || null,
+      user_id: params[3] || null,
+      user_email: params[4] ? params[4].toLowerCase() : null,
+      user_whatsapp: params[5] || null,
+      question: params[6] || "",
+      status: params[7] || "pending",
+      admin_answer: null,
+      created_at: new Date().toISOString(),
+      answered_at: null,
+    };
+    memoryDb.support_tickets.push(ticketObj);
+    return [ticketObj] as unknown as T[];
+  }
+
+  if (normalized.startsWith("SELECT") && normalized.includes("FROM support_tickets")) {
+    let tickets = [...memoryDb.support_tickets];
+    if (params.length > 0 && params[0]) {
+      const p0 = (params[0] || "").toString().toLowerCase();
+      tickets = tickets.filter(
+        (t) =>
+          (t.user_email && t.user_email.toLowerCase() === p0) ||
+          t.user_id === params[0] ||
+          t.session_id === params[0]
+      );
+    }
+    tickets.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return tickets as unknown as T[];
+  }
+
+  if (normalized.startsWith("UPDATE support_tickets")) {
+    if (normalized.includes("WHERE session_id = $4")) {
+      const targetUserId = params[0];
+      const targetEmail = (params[1] || "").toLowerCase();
+      const targetWhatsapp = params[2];
+      const sid = params[3];
+      memoryDb.support_tickets.forEach((t) => {
+        if (t.session_id === sid && (!t.user_email || t.user_email === "")) {
+          t.user_id = targetUserId;
+          t.user_email = targetEmail;
+          if (targetWhatsapp) t.user_whatsapp = targetWhatsapp;
+        }
+      });
+    }
+    return [] as T[];
+  }
+
+  // 5. FAQs & Categories
+  if (normalized.includes("FROM faqs")) {
+    return memoryDb.faqs as unknown as T[];
+  }
+
+  if (normalized.includes("FROM faq_categories")) {
+    return memoryDb.faq_categories as unknown as T[];
+  }
+
+  // 6. Knowledge documents & chunks
+  if (normalized.includes("FROM knowledge_documents")) {
+    return memoryDb.knowledge_documents as unknown as T[];
+  }
+
+  if (normalized.includes("FROM knowledge_chunks")) {
+    return memoryDb.knowledge_chunks as unknown as T[];
+  }
+
+  // 7. Site Content
+  if (normalized.includes("FROM site_content")) {
+    const data = memoryDb.site_content["main_site_content"] || null;
+    return (data ? [{ data }] : []) as unknown as T[];
+  }
+
+  if (normalized.includes("INSERT INTO site_content")) {
+    const id = params[0] || "main_site_content";
+    const data = typeof params[1] === "string" ? JSON.parse(params[1]) : params[1];
+    memoryDb.site_content[id] = data;
+    return [] as T[];
+  }
+
+  // 8. Packages, Portfolios, Media Items
+  if (normalized.includes("FROM packages")) {
+    return memoryDb.packages as unknown as T[];
+  }
+  if (normalized.includes("FROM portfolios")) {
+    return memoryDb.portfolios as unknown as T[];
+  }
+  if (normalized.includes("FROM media_items")) {
+    return memoryDb.media_items as unknown as T[];
+  }
+
+  // 9. Admin users
+  if (normalized.includes("FROM admin_users WHERE email = $1")) {
+    const email = (params[0] || "").toString().toLowerCase();
+    const admin = memoryDb.admin_users.find((a) => a.email.toLowerCase() === email);
+    return admin ? ([admin] as unknown as T[]) : [];
+  }
+
+  return [] as T[];
+}
+
 export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
-  await ensureSchema();
-  const p = getPool();
-  const res = await p.query(text, params);
-  return res.rows as T[];
+  if (!hasDatabaseUrl()) {
+    return runMemoryQuery<T>(text, params);
+  }
+  try {
+    await ensureSchema();
+    const p = getPool();
+    const res = await p.query(text, params);
+    return res.rows as T[];
+  } catch (err: any) {
+    console.warn("PostgreSQL query failed, falling back to memory store:", err?.message || err);
+    return runMemoryQuery<T>(text, params);
+  }
 }
 
 let schemaInitialized = false;
@@ -361,13 +685,22 @@ Refund requests must be formally submitted within 14 days of project kickoff if 
   }
 }
 
-export async function withTransaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(
+  callback: (
+    run: ((text: string, params?: any[]) => Promise<any>) & { query: (text: string, params?: any[]) => Promise<any> }
+  ) => Promise<T>
+): Promise<T> {
   await ensureSchema();
   const p = getPool();
   const client = await p.connect();
   try {
     await client.query("BEGIN");
-    const result = await callback(client);
+    const run: any = async (text: string, params?: any[]) => {
+      const res = await client.query(text, params);
+      return res.rows;
+    };
+    run.query = async (text: string, params?: any[]) => client.query(text, params);
+    const result = await callback(run);
     await client.query("COMMIT");
     return result;
   } catch (e) {
